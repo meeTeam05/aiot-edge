@@ -1,4 +1,3 @@
-import { useState } from 'react';
 import { ActivityIndicator, Alert, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 
@@ -16,14 +15,9 @@ import { EmptyState } from '@/components/atoms/EmptyState';
 
 import { useDevices } from '@/queries/devices';
 import { useCommands } from '@/queries/commands';
+import { useShadow, useRefreshShadow } from '@/queries/shadow';
 import { useTelemetryLive } from '@/hooks/useTelemetryLive';
-import { deviceService } from '@/services/deviceService';
-
-// Command hard-timeout for relay/mode toggles matches the Dart original's
-// _shadowHardTimeout (device_dashboard_screen.dart) — these are near-instant
-// firmware operations, unlike OTA/calibration which run for minutes.
-const CONTROL_COMMAND_TIMEOUT_MS = 10_000;
-const CONTROL_POLL_INTERVAL_MS = 1000;
+import { useDeviceControls } from '@/hooks/useDeviceControls';
 
 function errorMessage(err: unknown): string {
   return err instanceof Error ? err.message : String(err);
@@ -46,23 +40,19 @@ export default function DeviceDashboardScreen() {
 
   const devicesQuery = useDevices();
   const commandsQuery = useCommands(deviceId);
+  const shadowQuery = useShadow(deviceId);
+  const refreshShadow = useRefreshShadow(deviceId);
   const telemetry = useTelemetryLive(deviceId);
+  // Called unconditionally per the Rules of Hooks — submit() is only ever
+  // invoked after `device` below is confirmed to exist.
+  const controls = useDeviceControls({
+    commands: commandsQuery.data ?? [],
+    deviceId,
+    shadow: shadowQuery.data ?? null,
+    refetchShadow: refreshShadow,
+  });
 
   const device = (devicesQuery.data ?? []).find((d) => d.id === deviceId) ?? null;
-
-  const [optimisticMode, setOptimisticMode] = useState<boolean | null>(null);
-  const [modePending, setModePending] = useState(false);
-  const [optimisticRelay1, setOptimisticRelay1] = useState<boolean | null>(null);
-  const [optimisticRelay2, setOptimisticRelay2] = useState<boolean | null>(null);
-  const [optimisticRelay3, setOptimisticRelay3] = useState<boolean | null>(null);
-  const [relay1Pending, setRelay1Pending] = useState(false);
-  const [relay2Pending, setRelay2Pending] = useState(false);
-  const [relay3Pending, setRelay3Pending] = useState(false);
-
-  const deviceOn = optimisticMode ?? (device?.mode ?? '').toLowerCase() === 'on';
-  const relay1 = optimisticRelay1 ?? device?.relay1 ?? false;
-  const relay2 = optimisticRelay2 ?? device?.relay2 ?? false;
-  const relay3 = optimisticRelay3 ?? device?.relay3 ?? false;
 
   function goBack() {
     if (router.canGoBack()) {
@@ -72,46 +62,15 @@ export default function DeviceDashboardScreen() {
     }
   }
 
-  async function handleModeChange(value: boolean) {
-    if (!device) return;
-    setOptimisticMode(value);
-    setModePending(true);
-    try {
-      const commandId = await deviceService.setMode(device.id, value ? 'on' : 'off');
-      await deviceService.waitForCommandCompletion(device.id, commandId, {
-        timeoutMs: CONTROL_COMMAND_TIMEOUT_MS,
-        pollIntervalMs: CONTROL_POLL_INTERVAL_MS,
-      });
-    } catch (err) {
-      Alert.alert('Could not change mode', errorMessage(err));
-    } finally {
-      setModePending(false);
-      setOptimisticMode(null);
+  function handleModeToggle(nextOn: boolean) {
+    if (nextOn) {
+      controls.mode.submit('on').catch(() => undefined);
+      return;
     }
-  }
-
-  async function handleRelayToggle(
-    channel: 1 | 2 | 3,
-    current: boolean,
-    setOptimistic: (v: boolean | null) => void,
-    setPending: (v: boolean) => void,
-  ) {
-    if (!device || !deviceOn) return;
-    const next = !current;
-    setOptimistic(next);
-    setPending(true);
-    try {
-      const commandId = await deviceService.setRelay(device.id, channel, next);
-      await deviceService.waitForCommandCompletion(device.id, commandId, {
-        timeoutMs: CONTROL_COMMAND_TIMEOUT_MS,
-        pollIntervalMs: CONTROL_POLL_INTERVAL_MS,
-      });
-    } catch (err) {
-      Alert.alert('Could not toggle relay', errorMessage(err));
-    } finally {
-      setPending(false);
-      setOptimistic(null);
-    }
+    Alert.alert('Switch to Standby?', 'Sensors will pause and relays will turn off.', [
+      { text: 'Cancel', style: 'cancel' },
+      { text: 'Confirm', onPress: () => controls.mode.submit('off').catch(() => undefined) },
+    ]);
   }
 
   if (devicesQuery.isLoading) {
@@ -153,9 +112,33 @@ export default function DeviceDashboardScreen() {
     );
   }
 
+  if (shadowQuery.isError && !shadowQuery.data) {
+    return (
+      <View style={[styles.screen, { backgroundColor: c.bg }]}>
+        <AtmosphereAppBar variant="back" title={device.name} onBack={goBack} />
+        <EmptyState
+          icon={AppIcons.warn}
+          title="Failed to load device status"
+          body={errorMessage(shadowQuery.error)}
+          primaryAction="Retry"
+          onPrimaryAction={() => shadowQuery.refetch()}
+        />
+      </View>
+    );
+  }
+
+  // The reported shadow — not local state — is the sole source of displayed
+  // mode/relay values; commands never optimistically flip them.
+  const reported = shadowQuery.data?.reported ?? {};
+  const deviceOn = typeof reported.mode === 'string' && (reported.mode as string).toLowerCase() === 'on';
+  const relay1 = reported.relay_1 === true;
+  const relay2 = reported.relay_2 === true;
+  const relay3 = reported.relay_3 === true;
+
   const latestCommand = (commandsQuery.data ?? [])[0] ?? null;
   const numericSeries = (pick: (p: { temperature: number | null; humidity: number | null; coPpm: number | null; no2Ppm: number | null }) => number | null) =>
     telemetry.points.map(pick).filter((v): v is number => v !== null);
+  const feedback = controlFeedback(controls);
 
   return (
     <View style={[styles.screen, { backgroundColor: c.bg }]}>
@@ -180,7 +163,7 @@ export default function DeviceDashboardScreen() {
         <DeviceModeCard
           mode={deviceOn ? 'on' : 'off'}
           online={device.online}
-          onChange={modePending ? undefined : handleModeChange}
+          onChange={controls.mode.isPending ? undefined : handleModeToggle}
         />
 
         <View style={{ height: AtmosphereTokens.space20 }} />
@@ -255,8 +238,10 @@ export default function DeviceDashboardScreen() {
               channel={1}
               name="Fan"
               on={relay1}
-              disabled={!deviceOn || relay1Pending}
-              onToggle={() => handleRelayToggle(1, relay1, setOptimisticRelay1, setRelay1Pending)}
+              disabled={!deviceOn || controls.fan.isPending}
+              onToggle={() => {
+                if (deviceOn) controls.fan.submit(!relay1);
+              }}
             />
           </View>
 
@@ -265,8 +250,10 @@ export default function DeviceDashboardScreen() {
               channel={2}
               name="Lamp"
               on={relay2}
-              disabled={!deviceOn || relay2Pending}
-              onToggle={() => handleRelayToggle(2, relay2, setOptimisticRelay2, setRelay2Pending)}
+              disabled={!deviceOn || controls.lamp.isPending}
+              onToggle={() => {
+                if (deviceOn) controls.lamp.submit(!relay2);
+              }}
             />
           </View>
 
@@ -275,11 +262,22 @@ export default function DeviceDashboardScreen() {
               channel={3}
               name="Filter"
               on={relay3}
-              disabled={!deviceOn || relay3Pending}
-              onToggle={() => handleRelayToggle(3, relay3, setOptimisticRelay3, setRelay3Pending)}
+              disabled={!deviceOn || controls.filter.isPending}
+              onToggle={() => {
+                if (deviceOn) controls.filter.submit(!relay3);
+              }}
             />
           </View>
         </View>
+
+        {feedback ? (
+          <>
+            <View style={{ height: AtmosphereTokens.space12 }} />
+            <Text style={AtmosphereTextStyles.caption(feedback.state === 'failure' ? c.danger : c.warn)}>
+              {feedback.message}
+            </Text>
+          </>
+        ) : null}
 
         <View style={{ height: AtmosphereTokens.space24 }} />
 
@@ -306,6 +304,17 @@ export default function DeviceDashboardScreen() {
       </ScrollView>
     </View>
   );
+}
+
+function controlFeedback(
+  controls: ReturnType<typeof useDeviceControls>,
+): { message: string; state: 'failure' | 'queued' } | null {
+  for (const control of [controls.mode, controls.fan, controls.lamp, controls.filter]) {
+    if ((control.state === 'failure' || control.state === 'queued') && control.errorMessage !== null) {
+      return { message: control.errorMessage, state: control.state };
+    }
+  }
+  return null;
 }
 
 const styles = StyleSheet.create({
