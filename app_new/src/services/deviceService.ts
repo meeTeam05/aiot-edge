@@ -214,7 +214,7 @@ export class DeviceService {
     }
   }
 
-  async updateDevice(id: string, options: { name?: string; roomId?: string } = {}): Promise<Device> {
+  async updateDevice(id: string, options: { name?: string; roomId?: string | null } = {}): Promise<Device> {
     try {
       const normalizedDeviceId = normalizeDeviceId(id);
       const res = await this.client.put(`/devices/${normalizedDeviceId}`, {

@@ -136,10 +136,10 @@ export default function GeneralSettingsScreen() {
     }
   }
 
-  async function updateRoom(roomId: string | undefined) {
+  async function updateRoom(roomId: string | null) {
     setRoomPickerOpen(false);
     try {
-      await deviceService.updateDevice(deviceId, { roomId: roomId ?? '' });
+      await deviceService.updateDevice(deviceId, { roomId });
       await queryClient.invalidateQueries({ queryKey: devicesQueryKey });
     } catch (err) {
       Alert.alert('', `Failed to update room: ${err instanceof Error ? err.message : String(err)}`);
@@ -260,7 +260,7 @@ export default function GeneralSettingsScreen() {
         <View style={styles.sheetBackdrop}>
           <Pressable style={StyleSheet.absoluteFill} onPress={() => setRoomPickerOpen(false)} />
           <View style={[styles.sheet, { backgroundColor: c.surface }]}>
-            <Pressable style={styles.sheetRow} onPress={() => updateRoom(undefined)}>
+            <Pressable style={styles.sheetRow} onPress={() => updateRoom(null)}>
               <Text style={AtmosphereTextStyles.body(c.ink)}>No room</Text>
               {device.roomId === null ? <AppIcons.check size={18} color={c.brand} /> : null}
             </Pressable>
