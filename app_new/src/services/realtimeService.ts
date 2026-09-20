@@ -49,6 +49,13 @@ export class RealtimeService {
   private readonly eventHandlers = new Set<RealtimeEventHandler>();
   private readonly statusHandlers = new Set<RealtimeStatusHandler>();
 
+  // SSE reconnect/replay can resend frames. Bounded dedup by event ID, plus
+  // per-resource staleness rejection so a delayed/replayed frame can't
+  // overwrite a newer one that already arrived. Mirrors mobileApp's
+  // RealtimeEventRouter.acceptsEvent.
+  private readonly seenEventIds = new Set<string>();
+  private readonly latestEventTimes = new Map<string, number>();
+
   start(): void {
     if (!this.stopped) return;
     this.stopped = false;
@@ -131,10 +138,33 @@ export class RealtimeService {
       return;
     }
 
+    if (!this.acceptsEvent(event)) return;
+
     if (event.type === 'replay.reset') {
       this.emitStatus('degraded');
     }
     for (const handler of this.eventHandlers) handler(event);
+  }
+
+  private acceptsEvent(event: RealtimeEvent): boolean {
+    if (this.seenEventIds.has(event.id)) return false;
+    this.seenEventIds.add(event.id);
+    if (this.seenEventIds.size > 1_000) {
+      this.seenEventIds.delete(this.seenEventIds.values().next().value as string);
+    }
+
+    if (event.type === 'telemetry.point' || event.type === 'replay.reset') return true;
+
+    const key =
+      event.type === 'command.updated'
+        ? `${event.type}:${event.deviceId}:${String(event.payload.command_id ?? '')}`
+        : `${event.type}:${event.deviceId}`;
+
+    const eventTime = event.occurredAt.getTime();
+    const previous = this.latestEventTimes.get(key);
+    if (previous !== undefined && eventTime < previous) return false;
+    this.latestEventTimes.set(key, eventTime);
+    return true;
   }
 
   private scheduleReconnect(): void {
