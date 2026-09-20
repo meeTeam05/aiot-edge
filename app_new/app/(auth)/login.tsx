@@ -44,7 +44,9 @@ export default function LoginScreen() {
   return (
     <View style={[styles.screen, { backgroundColor: c.bg }]}>
       <ScrollView contentContainerStyle={styles.content}>
-        <DotLogo size={64} color={c.brand} />
+        <View style={styles.logo}>
+          <DotLogo size={64} color={c.brand} />
+        </View>
         <View style={{ height: AtmosphereTokens.space24 }} />
         <Text style={[AtmosphereTextStyles.h2(c.ink), styles.centerText]}>Welcome back</Text>
         <View style={{ height: AtmosphereTokens.space8 }} />
@@ -99,6 +101,9 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     paddingHorizontal: AtmosphereTokens.space24,
     paddingVertical: AtmosphereTokens.space32,
+  },
+  logo: {
+    alignSelf: 'center',
   },
   centerText: {
     textAlign: 'center',
