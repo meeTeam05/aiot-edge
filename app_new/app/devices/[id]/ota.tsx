@@ -11,8 +11,20 @@ import { AtmosphereCard } from '@/components/atoms/AtmosphereCard';
 import { EmptyState } from '@/components/atoms/EmptyState';
 import { Pill } from '@/components/atoms/Pill';
 import { useDevices } from '@/queries/devices';
-import { useOtaCatalog } from '@/queries/ota';
-import { deviceService } from '@/services/deviceService';
+import { useOtaCatalog, useOtaRealtimeProgress, useOtaRequestMutation } from '@/queries/ota';
+import { OtaProgressState } from '@/models/ota';
+
+const PROGRESS_COPY: Record<OtaProgressState, { title: string; body: (progress: number | null, error: string | null) => string }> = {
+  idle: { title: '', body: () => '' },
+  requesting: { title: 'Requesting firmware update', body: () => 'Sending the update request to the device service.' },
+  accepted: { title: 'Firmware update requested', body: () => 'Waiting for firmware progress from the device.' },
+  downloading: { title: 'Downloading firmware', body: (p) => (p === null ? 'Preparing the firmware update…' : `Downloading firmware: ${p}%`) },
+  waiting_reboot: { title: 'OTA update applied', body: () => 'Device is rebooting to finish the update.' },
+  checking_device: { title: 'Checking firmware version', body: () => 'Waiting for the device to reconnect…' },
+  completed: { title: 'Firmware update complete', body: () => 'The device reconnected with the requested firmware version.' },
+  timeout: { title: 'Unable to verify firmware update', body: () => 'The device did not reconnect in time.' },
+  failed: { title: 'OTA update failed', body: (_p, err) => err ?? 'Device reported an OTA failure.' },
+};
 
 export default function OtaScreen() {
   const { id: deviceId } = useLocalSearchParams<{ id: string }>();
@@ -21,18 +33,20 @@ export default function OtaScreen() {
 
   const devicesQuery = useDevices();
   const otaQuery = useOtaCatalog(deviceId);
+  const progressQuery = useOtaRealtimeProgress(deviceId);
+  const otaRequest = useOtaRequestMutation(deviceId);
   const [submittingVersion, setSubmittingVersion] = useState<string | null>(null);
 
   const device = (devicesQuery.data ?? []).find((d) => d.id === deviceId) ?? null;
   const catalog = otaQuery.data ?? null;
   const currentVersion = device?.firmwareVer ?? catalog?.currentVersion ?? 'Unknown';
   const isOnline = device?.online ?? catalog?.deviceOnline ?? false;
+  const progress = progressQuery.data;
 
   async function startUpdate(version: string) {
     setSubmittingVersion(version);
     try {
-      await deviceService.startOtaUpdate(deviceId, version);
-      Alert.alert('', `OTA update requested for ${version}`);
+      await otaRequest.mutateAsync(version);
     } catch (err) {
       Alert.alert('', err instanceof Error ? err.message : String(err));
     } finally {
@@ -58,6 +72,33 @@ export default function OtaScreen() {
           <View style={{ height: AtmosphereTokens.space4 }} />
           <Text style={AtmosphereTextStyles.mono(c.ink)}>{currentVersion}</Text>
         </AtmosphereCard>
+
+        {progress && progress.state !== 'idle' ? (
+          <>
+            <View style={{ height: AtmosphereTokens.space16 }} />
+            <AtmosphereCard>
+              <Text
+                style={AtmosphereTextStyles.body(
+                  progress.state === 'failed' || progress.state === 'timeout' ? c.danger : c.brand,
+                )}
+              >
+                {PROGRESS_COPY[progress.state].title}
+              </Text>
+              <View style={{ height: AtmosphereTokens.space4 }} />
+              <Text style={AtmosphereTextStyles.caption(c.ink2)}>
+                {PROGRESS_COPY[progress.state].body(progress.progress, progress.errorMessage)}
+              </Text>
+              {(progress.state === 'failed' || progress.state === 'timeout') && progress.requestedVersion ? (
+                <Pressable
+                  onPress={() => startUpdate(progress.requestedVersion!)}
+                  style={[styles.progressRetry, { borderColor: c.brand }]}
+                >
+                  <Text style={AtmosphereTextStyles.body(c.brand)}>Retry</Text>
+                </Pressable>
+              ) : null}
+            </AtmosphereCard>
+          </>
+        ) : null}
 
         <View style={{ height: AtmosphereTokens.space24 }} />
         <Text style={AtmosphereTextStyles.h2(c.ink)}>Available versions</Text>
@@ -136,4 +177,14 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
   },
   updateButtonLabel: { color: '#FFFFFF', fontWeight: '600' },
+  progressRetry: {
+    marginTop: AtmosphereTokens.space12,
+    height: 40,
+    paddingHorizontal: AtmosphereTokens.space16,
+    borderRadius: AtmosphereTokens.radiusButton,
+    borderWidth: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
+    alignSelf: 'flex-start',
+  },
 });
