@@ -1,4 +1,5 @@
 import { ActivityIndicator, FlatList, Pressable, StyleSheet, Text, View } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
 import { useColors } from '@/theme/useColors';
 import { AppColors } from '@/theme/appColors';
@@ -11,6 +12,7 @@ import { Home } from '@/models/home';
 export default function HomesScreen() {
   const c = useColors();
   const router = useRouter();
+  const insets = useSafeAreaInsets();
   const { data: homes, isLoading, isError, refetch, isRefetching } = useHomes();
 
   return (
@@ -52,7 +54,7 @@ export default function HomesScreen() {
         <FlatList
           data={homes}
           keyExtractor={(home) => home.id}
-          contentContainerStyle={styles.list}
+          contentContainerStyle={[styles.list, { paddingBottom: 16 + insets.bottom }]}
           onRefresh={refetch}
           refreshing={isRefetching}
           ItemSeparatorComponent={() => <View style={{ height: 8 }} />}
@@ -79,7 +81,7 @@ export default function HomesScreen() {
       {homes && homes.length > 0 ? (
         <Pressable
           onPress={() => router.push('/homes/create')}
-          style={[styles.fab, { backgroundColor: AppColors.primary }]}
+          style={[styles.fab, { backgroundColor: AppColors.primary, bottom: 20 + insets.bottom }]}
         >
           <AppIcons.plus size={24} color="#FFFFFF" />
         </Pressable>

@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import { ActivityIndicator, Alert, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import * as Clipboard from 'expo-clipboard';
 import { useColors } from '@/theme/useColors';
@@ -52,6 +53,7 @@ export default function GeneralSettingsScreen() {
   const { id: deviceId } = useLocalSearchParams<{ id: string }>();
   const router = useRouter();
   const c = useColors();
+  const insets = useSafeAreaInsets();
   const queryClient = useQueryClient();
 
   const devicesQuery = useDevices();
@@ -163,7 +165,9 @@ export default function GeneralSettingsScreen() {
   return (
     <View style={[styles.screen, { backgroundColor: c.bg }]}>
       <AtmosphereAppBar variant="back" title="Settings" onBack={goBack} />
-      <ScrollView contentContainerStyle={styles.content}>
+      <ScrollView
+        contentContainerStyle={[styles.content, { paddingBottom: AtmosphereTokens.space20 + insets.bottom }]}
+      >
         <Text style={AtmosphereTextStyles.h2(c.ink)}>General</Text>
         <View style={{ height: AtmosphereTokens.space12 }} />
         <AtmosphereCard padding={0}>

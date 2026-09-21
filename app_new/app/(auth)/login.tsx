@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import { Alert, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
 import { useAuthStore } from '@/stores/authStore';
 import { useColors } from '@/theme/useColors';
@@ -42,7 +43,7 @@ export default function LoginScreen() {
   }
 
   return (
-    <View style={[styles.screen, { backgroundColor: c.bg }]}>
+    <SafeAreaView style={[styles.screen, { backgroundColor: c.bg }]} edges={['top', 'bottom']}>
       <ScrollView contentContainerStyle={styles.content}>
         <View style={styles.logo}>
           <DotLogo size={64} color={c.brand} />
@@ -88,7 +89,7 @@ export default function LoginScreen() {
           <TextLinkButton label="Register" onPress={() => router.push('/register')} />
         </View>
       </ScrollView>
-    </View>
+    </SafeAreaView>
   );
 }
 

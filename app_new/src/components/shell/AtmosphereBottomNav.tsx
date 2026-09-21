@@ -4,6 +4,7 @@ import {
   Text,
   View,
 } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { useColors } from '@/theme/useColors';
 import { AppColors } from '@/theme/appColors';
@@ -56,6 +57,7 @@ export function AtmosphereBottomNav({
 
 
   const c = useColors();
+  const insets = useSafeAreaInsets();
 
 
 
@@ -68,6 +70,7 @@ export function AtmosphereBottomNav({
         {
           backgroundColor: c.surface,
           borderTopColor: c.border,
+          paddingBottom: 8 + insets.bottom,
         },
       ]}
 
@@ -191,7 +194,7 @@ const styles = StyleSheet.create({
 
   container: {
 
-    height: 72,
+    minHeight: 72,
 
     flexDirection: 'row',
 

@@ -1,10 +1,13 @@
 import { ReactNode } from 'react';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 import { useRouter } from 'expo-router';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useColors } from '../../theme/useColors';
 import { AppIcons } from '../../theme/icons';
 import { AppColors } from '../../theme/appColors';
 import { DotLogo } from '../atoms/DotLogo';
+
+const BAR_CONTENT_HEIGHT = 56;
 
 type AtmosphereAppBarProps =
   | { variant: 'brand'; actions?: ReactNode }
@@ -14,10 +17,14 @@ type AtmosphereAppBarProps =
 export function AtmosphereAppBar(props: AtmosphereAppBarProps) {
   const c = useColors();
   const router = useRouter();
+  const insets = useSafeAreaInsets();
+  // Fixed height only covers the bar's own content; pad the status bar inset
+  // on top of it instead of baking it into height, so it adapts per device.
+  const barStyle = [styles.bar, { backgroundColor: c.bg, paddingTop: insets.top, height: BAR_CONTENT_HEIGHT + insets.top }];
 
   if (props.variant === 'brand') {
     return (
-      <View style={[styles.bar, { backgroundColor: c.bg }]}>
+      <View style={barStyle}>
         <View style={styles.row}>
           <DotLogo size={24} color={AppColors.primary} />
           <Text style={[styles.brandTitle, { color: c.textPrimary }]}>Atmosphere</Text>
@@ -29,7 +36,7 @@ export function AtmosphereAppBar(props: AtmosphereAppBarProps) {
 
   if (props.variant === 'back') {
     return (
-      <View style={[styles.bar, { backgroundColor: c.bg }]}>
+      <View style={barStyle}>
         <View style={styles.row}>
           <Pressable
             onPress={props.onBack ?? (() => router.back())}
@@ -48,7 +55,7 @@ export function AtmosphereAppBar(props: AtmosphereAppBarProps) {
   }
 
   return (
-    <View style={[styles.bar, { backgroundColor: c.bg }]}>
+    <View style={barStyle}>
       {props.title ? (
         <Text style={[styles.title, { color: c.textPrimary }]}>{props.title}</Text>
       ) : (
@@ -60,7 +67,6 @@ export function AtmosphereAppBar(props: AtmosphereAppBarProps) {
 
 const styles = StyleSheet.create({
   bar: {
-    height: 56,
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',

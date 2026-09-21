@@ -1,5 +1,6 @@
 import { useMemo, useState } from 'react';
 import { ActivityIndicator, FlatList, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { useColors } from '@/theme/useColors';
 import { withAlpha } from '@/theme/color';
@@ -85,6 +86,7 @@ export default function CommandHistoryScreen() {
   const { id: deviceId } = useLocalSearchParams<{ id: string }>();
   const router = useRouter();
   const c = useColors();
+  const insets = useSafeAreaInsets();
   const commandsQuery = useCommands(deviceId);
   const [filter, setFilter] = useState<CommandFilter>('all');
   const [payloadSheet, setPayloadSheet] = useState<Command | null>(null);
@@ -131,7 +133,7 @@ export default function CommandHistoryScreen() {
         <FlatList
           data={filtered}
           keyExtractor={(command) => command.id}
-          contentContainerStyle={styles.list}
+          contentContainerStyle={[styles.list, { paddingBottom: insets.bottom }]}
           onRefresh={commandsQuery.refetch}
           refreshing={commandsQuery.isRefetching}
           renderItem={({ item }) => {

@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import { ActivityIndicator, Alert, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { useColors } from '@/theme/useColors';
 import { AtmosphereTextStyles } from '@/theme/textStyles';
@@ -30,6 +31,7 @@ export default function OtaScreen() {
   const { id: deviceId } = useLocalSearchParams<{ id: string }>();
   const router = useRouter();
   const c = useColors();
+  const insets = useSafeAreaInsets();
 
   const devicesQuery = useDevices();
   const otaQuery = useOtaCatalog(deviceId);
@@ -63,7 +65,9 @@ export default function OtaScreen() {
           router.canGoBack() ? router.back() : router.replace(`/devices/${deviceId}/settings`)
         }
       />
-      <ScrollView contentContainerStyle={styles.content}>
+      <ScrollView
+        contentContainerStyle={[styles.content, { paddingBottom: AtmosphereTokens.space20 + insets.bottom }]}
+      >
         <AtmosphereCard>
           <View style={styles.headerRow}>
             <Text style={AtmosphereTextStyles.caption(c.ink3)}>Current firmware</Text>

@@ -1,4 +1,5 @@
 import { ActivityIndicator, Alert, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 
 import { useColors } from '@/theme/useColors';
@@ -37,6 +38,7 @@ export default function DeviceDashboardScreen() {
   const { id: deviceId } = useLocalSearchParams<{ id: string }>();
   const router = useRouter();
   const c = useColors();
+  const insets = useSafeAreaInsets();
 
   const devicesQuery = useDevices();
   const commandsQuery = useCommands(deviceId);
@@ -153,7 +155,9 @@ export default function DeviceDashboardScreen() {
         }
       />
 
-      <ScrollView contentContainerStyle={styles.content}>
+      <ScrollView
+        contentContainerStyle={[styles.content, { paddingBottom: AtmosphereTokens.space20 + insets.bottom }]}
+      >
         <Text style={AtmosphereTextStyles.caption(device.online ? c.brand : c.ink3)}>
           {device.online ? '● Online' : '● Offline'}
         </Text>

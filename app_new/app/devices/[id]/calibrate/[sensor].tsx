@@ -1,5 +1,6 @@
 import { useRef, useState } from 'react';
 import { ActivityIndicator, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { useColors } from '@/theme/useColors';
 import { AppIcons } from '@/theme/icons';
@@ -30,6 +31,7 @@ export default function CalibrationWizardScreen() {
   const { id: deviceId, sensor } = useLocalSearchParams<{ id: string; sensor: string }>();
   const router = useRouter();
   const c = useColors();
+  const insets = useSafeAreaInsets();
   const sensorLabel = sensor.toUpperCase();
 
   const [currentStep, setCurrentStep] = useState(0);
@@ -84,7 +86,9 @@ export default function CalibrationWizardScreen() {
       <View style={{ height: AtmosphereTokens.space24 }} />
       <StepDots current={currentStep} total={3} />
       <View style={{ height: AtmosphereTokens.space32 }} />
-      <ScrollView contentContainerStyle={styles.content}>
+      <ScrollView
+        contentContainerStyle={[styles.content, { paddingBottom: AtmosphereTokens.space20 + insets.bottom }]}
+      >
         {currentStep === 0 ? (
           <View>
             <Text style={AtmosphereTextStyles.h1(c.ink)}>Preparation</Text>

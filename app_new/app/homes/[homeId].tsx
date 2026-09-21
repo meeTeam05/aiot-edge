@@ -9,6 +9,7 @@ import {
   View,
 } from 'react-native';
 import { useLocalSearchParams, useRouter } from 'expo-router';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useColors } from '@/theme/useColors';
 import { AppIcons } from '@/theme/icons';
 import { AtmosphereTextStyles } from '@/theme/textStyles';
@@ -35,6 +36,7 @@ export default function HomeDetailScreen() {
   const { homeId } = useLocalSearchParams<{ homeId: string }>();
   const router = useRouter();
   const c = useColors();
+  const insets = useSafeAreaInsets();
 
   const homesQuery = useHomes();
   const roomsQuery = useRooms(homeId);
@@ -99,7 +101,9 @@ export default function HomeDetailScreen() {
   return (
     <View style={[styles.screen, { backgroundColor: c.bg }]}>
       <AtmosphereAppBar variant="back" title={home.name} onBack={goBack} />
-      <ScrollView contentContainerStyle={styles.content}>
+      <ScrollView
+        contentContainerStyle={[styles.content, { paddingBottom: AtmosphereTokens.space16 + insets.bottom }]}
+      >
         <Text style={AtmosphereTextStyles.label(c.ink3)}>HOME NAME</Text>
         <View style={{ height: AtmosphereTokens.space12 }} />
         <View style={[styles.card, { backgroundColor: c.paper, borderColor: c.line }]}>
