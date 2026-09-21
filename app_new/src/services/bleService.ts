@@ -164,14 +164,23 @@ export class BleService {
     password: string,
     timeoutMs = 30_000,
   ): Promise<BleProvisioningResult> {
+    const initialDeviceId = this.connectedDeviceId;
+    if (!initialDeviceId) throw new BleException('Not connected');
+
+    // Link may have dropped while the user was typing WiFi creds; reconnect once instead of failing the write.
+    const stillConnected = await this.manager.isDeviceConnected(initialDeviceId).catch(() => false);
+    if (!stillConnected) {
+      await this.connect(initialDeviceId);
+    }
     const deviceId = this.connectedDeviceId;
     if (!deviceId) throw new BleException('Not connected');
 
     let notifyBuffer = '';
+    let subscription: Subscription | undefined;
+    let timer: ReturnType<typeof setTimeout> | undefined;
     const notifyPromise = new Promise<string>((resolve, reject) => {
-      let subscription: Subscription;
-      const timer = setTimeout(() => {
-        subscription.remove();
+      timer = setTimeout(() => {
+        subscription?.remove();
         reject(
           new BleException(`Timed out waiting for device response (${Math.round(timeoutMs / 1000)}s)`),
         );
@@ -187,7 +196,7 @@ export class BleService {
           notifyBuffer += base64ToUtf8(characteristic.value);
           if (notifyBuffer.includes('{') && notifyBuffer.includes('}')) {
             clearTimeout(timer);
-            subscription.remove();
+            subscription?.remove();
             resolve(notifyBuffer);
           }
         },
@@ -195,6 +204,9 @@ export class BleService {
     });
 
     try {
+      // monitorCharacteristicForDevice enables notify async with no promise to await; give it a moment to land first.
+      await new Promise((resolve) => setTimeout(resolve, 200));
+
       await this.manager.writeCharacteristicWithResponseForDevice(
         deviceId,
         BleConfig.provisioningServiceUuid,
@@ -208,6 +220,8 @@ export class BleService {
         utf8ToBase64(password),
       );
     } catch (err) {
+      clearTimeout(timer);
+      subscription?.remove();
       throw new BleException(
         `Failed to write credentials: ${err instanceof Error ? err.message : String(err)}`,
       );
