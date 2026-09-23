@@ -42,7 +42,7 @@ baseline):
 |---|---|
 | Member models | `outputs_binary_beijing_freeze`, `outputs_binary_beijing_nofreeze` |
 | Architecture | `CNN1DEncoder(num_classes=2)` — stem Conv1D → 3× depthwise-separable Conv1D → GAP → Dense(64→2), 4,530 params each |
-| Input | `(1, 4, 24)` float32 — 24 **consecutive hourly** samples, channel order **[Temperature, Humidity, CO, NO2]** (fixed, matches real sensor order) |
+| Input | `(1, 4, 24)` float32 — 24 **consecutive hourly** samples, channel order **[Temperature, Humidity, CO, NO2]** (fixed, matches real sensor order). Units: °C, %RH, **µg/m³, µg/m³** — the gas drivers report ppm, so `sensor_task` converts with `AI_CO_PPM_TO_UGM3` (1145.6) / `AI_NO2_PPM_TO_UGM3` (1881.6) before feeding `ai_input` |
 | Normalization | z-score, **identical for both models** (same HCMC train split): |
 | | `mean = [27.4282, 58.9987, 1056.4513, 77.0846]` |
 | | `std  = [4.4998, 27.3067, 644.6595, 42.7013]` |
@@ -179,6 +179,8 @@ device/{device_id}/ai/state
 {"ready": true, "ai_state": 0, "confidence": 0.83, "ts": 1777631761}
 {"ready": false, "warmup_hours_filled": 6, "ts": 1777631761}
 ```
+
+The device must be allowed to publish this topic: `server/api/src/services/emqx.js` → `deviceRules()` includes `device/{id}/ai/state`. EMQX runs with `no_match = deny` + `deny_action = disconnect`, so a device whose ACL lacks this rule gets **disconnected** on every `ai/state` publish. ACL rules are only written when a device is first registered (`createDeviceUser`) — devices registered before this rule was added must have their ACL updated (re-register, or add the rule via the EMQX dashboard/API) before enabling `SA_AI_ENABLED`.
 
 ## 7. Build
 
