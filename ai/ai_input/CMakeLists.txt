@@ -3,4 +3,6 @@ idf_component_register(
         "src/ai_input.c"
     INCLUDE_DIRS
         "include"
+    PRIV_REQUIRES
+        freertos
 )

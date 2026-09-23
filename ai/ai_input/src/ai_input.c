@@ -10,6 +10,19 @@
 
 #include <string.h>
 
+/* sensor_task writes and ai_scheduler reads from different cores, so every
+ * public entry point runs under a spinlock on target. Host builds (the
+ * gcc unit test in ai/tools) have no FreeRTOS and are single-threaded. */
+#ifdef ESP_PLATFORM
+#include "freertos/FreeRTOS.h"
+static portMUX_TYPE s_lock = portMUX_INITIALIZER_UNLOCKED;
+#define AI_INPUT_LOCK()   portENTER_CRITICAL(&s_lock)
+#define AI_INPUT_UNLOCK() portEXIT_CRITICAL(&s_lock)
+#else
+#define AI_INPUT_LOCK()   ((void)0)
+#define AI_INPUT_UNLOCK() ((void)0)
+#endif
+
 /* Ring buffer of 24 finalized hourly means, oldest-first read order. */
 static float s_ring[AI_INPUT_NUM_CHANNELS][AI_INPUT_WINDOW_LEN];
 static uint32_t s_filled = 0;      /* how many slots hold real data (0..24) */
@@ -35,6 +48,7 @@ static void reset_accumulator(uint32_t hour_bucket)
 
 void ai_input_reset(void)
 {
+    AI_INPUT_LOCK();
     memset(s_ring, 0, sizeof(s_ring));
     s_filled = 0;
     s_head = 0;
@@ -42,6 +56,7 @@ void ai_input_reset(void)
     s_acc_active = false;
     s_have_last_finalized = false;
     s_last_finalized_hour_bucket = 0;
+    AI_INPUT_UNLOCK();
 }
 
 static void push_hour(const float means[AI_INPUT_NUM_CHANNELS], uint32_t hour_bucket)
@@ -101,6 +116,7 @@ void ai_input_feed_sample(const ai_sensor_sample_t *sample)
 
     uint32_t hour_bucket = sample->timestamp / 3600u;
 
+    AI_INPUT_LOCK();
     if (!s_acc_active) {
         reset_accumulator(hour_bucket);
     } else if (hour_bucket != s_acc_hour_bucket) {
@@ -108,20 +124,26 @@ void ai_input_feed_sample(const ai_sensor_sample_t *sample)
         reset_accumulator(hour_bucket);
     }
 
-    if (!sample->valid) {
-        return; /* still counts towards hour-boundary detection above, not towards the mean */
+    /* Invalid samples still count towards hour-boundary detection above, not towards the mean. */
+    if (sample->valid) {
+        s_acc_sum[0] += (double)sample->temperature_c;
+        s_acc_sum[1] += (double)sample->humidity_pct;
+        s_acc_sum[2] += (double)sample->co_ugm3;
+        s_acc_sum[3] += (double)sample->no2_ugm3;
+        s_acc_count++;
     }
-
-    s_acc_sum[0] += (double)sample->temperature_c;
-    s_acc_sum[1] += (double)sample->humidity_pct;
-    s_acc_sum[2] += (double)sample->co_ppm;
-    s_acc_sum[3] += (double)sample->no2_ppm;
-    s_acc_count++;
+    AI_INPUT_UNLOCK();
 }
 
 bool ai_input_get_window(float out[AI_INPUT_NUM_CHANNELS][AI_INPUT_WINDOW_LEN])
 {
-    if (out == NULL || s_filled < AI_INPUT_WINDOW_LEN) {
+    if (out == NULL) {
+        return false;
+    }
+
+    AI_INPUT_LOCK();
+    if (s_filled < AI_INPUT_WINDOW_LEN) {
+        AI_INPUT_UNLOCK();
         return false;
     }
 
@@ -133,15 +155,22 @@ bool ai_input_get_window(float out[AI_INPUT_NUM_CHANNELS][AI_INPUT_WINDOW_LEN])
             out[c][t] = s_ring[c][idx];
         }
     }
+    AI_INPUT_UNLOCK();
     return true;
 }
 
 bool ai_input_is_ready(void)
 {
-    return s_filled >= AI_INPUT_WINDOW_LEN;
+    AI_INPUT_LOCK();
+    bool ready = s_filled >= AI_INPUT_WINDOW_LEN;
+    AI_INPUT_UNLOCK();
+    return ready;
 }
 
 uint32_t ai_input_filled_hours(void)
 {
-    return s_filled;
+    AI_INPUT_LOCK();
+    uint32_t filled = s_filled;
+    AI_INPUT_UNLOCK();
+    return filled;
 }
