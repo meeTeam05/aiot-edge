@@ -1,0 +1,89 @@
+/**
+ * Semantic icon registry for the Atmosphere design system.
+ * Wraps lucide-react-native so callers never reference the package
+ * directly. Source: app/lib/design/icons.dart.
+ */
+import {
+  Wifi,
+  Bluetooth,
+  Signal,
+  Battery,
+  Home,
+  Bell,
+  User,
+  Radio,
+  Wind,
+  Lightbulb,
+  Fan,
+  CloudFog,
+  Cloud,
+  Thermometer,
+  Droplet,
+  Plus,
+  ArrowLeft,
+  RefreshCw,
+  Pencil,
+  Trash2,
+  Settings,
+  Check,
+  X,
+  Info,
+  AlertTriangle,
+  ChevronRight,
+  ChevronDown,
+  Lock,
+  Eye,
+  EyeOff,
+  MapPin,
+  LineChart,
+  Zap,
+  Radar,
+  Download,
+  QrCode,
+} from 'lucide-react-native';
+
+export const AppIcons = {
+  // Status bar / chrome
+  wifi: Wifi,
+  bluetooth: Bluetooth,
+  signal: Signal,
+  battery: Battery,
+
+  // Nav
+  home: Home,
+  notifications: Bell,
+  profile: User,
+
+  // Device
+  device: Radio,
+  wind: Wind,
+  bulb: Lightbulb,
+  fan: Fan,
+  smog: CloudFog,
+  cloud: Cloud,
+  temp: Thermometer,
+  humidity: Droplet,
+
+  // Action
+  plus: Plus,
+  back: ArrowLeft,
+  refresh: RefreshCw,
+  edit: Pencil,
+  trash: Trash2,
+  cog: Settings,
+  check: Check,
+  close: X,
+  info: Info,
+  warn: AlertTriangle,
+  chev: ChevronRight,
+  chevDown: ChevronDown,
+  lock: Lock,
+  eye: Eye,
+  eyeOff: EyeOff,
+  pin: MapPin,
+  chart: LineChart,
+  bolt: Zap,
+  radar: Radar,
+  download: Download,
+  qr: QrCode,
+} as const;

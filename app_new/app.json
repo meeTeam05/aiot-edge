@@ -1,0 +1,51 @@
+{
+  "expo": {
+    "name": "Smart Air",
+    "slug": "smart-air",
+    "scheme": "smartair",
+    "version": "1.1.0",
+    "orientation": "portrait",
+    "icon": "./assets/icon.png",
+    "userInterfaceStyle": "light",
+    "experiments": {
+      "typedRoutes": true
+    },
+    "ios": {
+      "supportsTablet": true,
+      "bundleIdentifier": "xyz.minhnhat05.smartair"
+    },
+    "android": {
+      "package": "xyz.minhnhat05.smartair.test",
+      "adaptiveIcon": {
+        "backgroundColor": "#E4F0EC",
+        "foregroundImage": "./assets/android-icon-foreground.png"
+      },
+      "predictiveBackGestureEnabled": false
+    },
+    "web": {
+      "favicon": "./assets/favicon.png",
+      "bundler": "metro"
+    },
+    "plugins": [
+      "expo-router",
+      "expo-secure-store",
+      "expo-font",
+      [
+        "expo-splash-screen",
+        {
+          "image": "./assets/splash-icon.png",
+          "imageWidth": 160,
+          "resizeMode": "contain",
+          "backgroundColor": "#F5F7F6"
+        }
+      ],
+      [
+        "react-native-ble-plx",
+        {
+          "isBackgroundEnabled": false,
+          "bluetoothAlwaysPermission": "Allow $(PRODUCT_NAME) to connect to Smart Air devices via Bluetooth to set them up."
+        }
+      ]
+    ]
+  }
+}
