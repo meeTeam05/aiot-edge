@@ -87,6 +87,7 @@ function deviceRules(deviceId) {
         { topic: `device/${deviceId}/shadow/report`, action: 'publish', permission: 'allow' },
         { topic: `device/${deviceId}/shadow/get`, action: 'publish', permission: 'allow' },
         { topic: `device/${deviceId}/ota/progress`, action: 'publish', permission: 'allow' },
+        { topic: `device/${deviceId}/ai/state`, action: 'publish', permission: 'allow' },
         { topic: `device/${deviceId}/command`, action: 'subscribe', permission: 'allow' },
         { topic: `device/${deviceId}/shadow/get_response`, action: 'subscribe', permission: 'allow' },
         { topic: `device/${deviceId}/ota/update`, action: 'subscribe', permission: 'allow' },

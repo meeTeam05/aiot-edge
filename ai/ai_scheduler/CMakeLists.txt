@@ -1,18 +1,16 @@
 idf_component_register(
     SRCS
-        "sensor_task.c"
+        "src/ai_scheduler.c"
     INCLUDE_DIRS
         "include"
     REQUIRES
-        config
-        ds3231
-        gm102b
-        gm702b
-        sht3x
-    PRIV_REQUIRES
         ai_input
-        display_service
+        ai_inference
+    PRIV_REQUIRES
+        buzzer
+        device_mode
         freertos
         json
+        relay
         sa_mqtt
 )

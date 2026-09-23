@@ -1,0 +1,20 @@
+menu "Smart-Air AI Inference"
+
+    config SA_AI_TENSOR_ARENA_SIZE
+        int "TFLite Micro tensor arena size (bytes)"
+        default 24576
+        range 8192 131072
+        help
+            Static working buffer shared sequentially by both ensemble
+            member models (one model's AllocateTensors()/Invoke() fully
+            completes before the other's starts, so this only needs to fit
+            the LARGER of the two, not both at once).
+
+            24576 (24KB) is a rough starting estimate for this model size
+            (~4.5K params, largest INT8 activation ~32 channels x 24
+            length) -- NOT a measured value (no ESP32-S3 hardware was
+            available to benchmark when this was written, see
+            ai/README.md "Benchmark HOWTO"). If `idf.py build` or a boot-time
+            log shows `AllocateTensors failed`, increase this value.
+
+endmenu
