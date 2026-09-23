@@ -28,7 +28,7 @@ static int g_failures = 0;
 static void feed(uint32_t ts, float t, float h, float co, float no2, bool valid)
 {
     ai_sensor_sample_t s = {
-        .temperature_c = t, .humidity_pct = h, .co_ppm = co, .no2_ppm = no2,
+        .temperature_c = t, .humidity_pct = h, .co_ugm3 = co, .no2_ugm3 = no2,
         .valid = valid, .timestamp = ts,
     };
     ai_input_feed_sample(&s);

@@ -36,14 +36,22 @@ extern "C" {
 #define AI_INPUT_NUM_CHANNELS 4
 #define AI_INPUT_WINDOW_LEN   24
 
+/* The model was trained on reference-station data where CO and NO2 are in
+ * ug/m3 (contract mean CO=1056, NO2=77), while the firmware gas drivers
+ * report ppm. Convert with molar mass / 24.45 L/mol (25 C, 1 atm) before
+ * feeding samples in -- otherwise every real reading z-scores to ~-1.7,
+ * i.e. the model always sees "cleanest possible air". */
+#define AI_CO_PPM_TO_UGM3  1145.6f  /* 28.01 g/mol  */
+#define AI_NO2_PPM_TO_UGM3 1881.6f  /* 46.006 g/mol */
+
 /** Channel order matches the model contract EXACTLY -- do not reorder.
  *  [Temperature, Humidity, CO, NO2] (ungdungdidong/CLAUDE.md mục 2,
  *  ai/inference/model/model_contract_*.json "channels"). */
 typedef struct {
     float temperature_c;
     float humidity_pct;
-    float co_ppm;
-    float no2_ppm;
+    float co_ugm3;       /**< ug/m3, NOT ppm -- see AI_CO_PPM_TO_UGM3. */
+    float no2_ugm3;      /**< ug/m3, NOT ppm -- see AI_NO2_PPM_TO_UGM3. */
     bool valid;          /**< false if ANY of the 4 readings above failed this poll. */
     uint32_t timestamp;  /**< unix seconds for this sample (used only to bucket into an hour). */
 } ai_sensor_sample_t;
