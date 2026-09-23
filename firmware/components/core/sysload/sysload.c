@@ -28,6 +28,7 @@
 #include "led.h"
 #include "factory_reset.h"
 #include "sensor_task.h"
+#include "ai_scheduler.h"
 #include "httpd.h"
 #include "ota.h"
 #include "buzzer.h"
@@ -1104,6 +1105,17 @@ void sysload_init(void)
 #else
     ESP_LOGI(TAG, "No sensors enabled; sensor_task not started");
 #endif
+
+    /* 10b - On-device AI scheduler (ai/ai_scheduler): no-op unless
+     * CONFIG_SA_AI_ENABLED=y, see ai/README.md. Started right after
+     * sensor_task regardless of whether it actually launched, exactly like
+     * sensor_task itself -- ai_scheduler fails safe (never touches relay)
+     * while ai/ai_input's 24h buffer is still warming up or empty. */
+    esp_err_t ai_err = ai_scheduler_start(resolved_id);
+    if (ai_err != ESP_OK) {
+        ESP_LOGW(TAG, "ai_scheduler_start failed: %s; continuing without on-device AI",
+                 esp_err_to_name(ai_err));
+    }
 
     /* 11 - Validate OTA firmware after all subsystems are running (SEC-03) */
     ota_validate_and_commit();
