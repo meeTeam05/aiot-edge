@@ -10,9 +10,6 @@ idf_component_register(
         "model/model_beijing_nofreeze_int8.tflite"
 )
 
-# esp-tflite-micro ships its own CMake target; depending on the exact
-# component-manager version this may register as "tflite-lib" or
-# "esp-tflite-micro" -- verify the exact target name once `idf.py build`
-# has pulled the dependency (declared in idf_component.yml) and adjust this
-# line if the build fails with "target not found".
-target_link_libraries(${COMPONENT_LIB} PRIVATE tflite-lib)
+# esp-tflite-micro is declared in idf_component.yml; the component manager
+# adds it to this component's requirements automatically, so no explicit
+# target_link_libraries() is needed.

@@ -40,12 +40,13 @@ static const char *TAG = "ai_inference";
  * CMakeLists.txt EMBED_FILES "model/model_beijing_freeze_int8.tflite" and
  * "model/model_beijing_nofreeze_int8.tflite" -- ESP-IDF's build system
  * turns each embedded file into a pair of linker symbols named
- * `_binary_<sanitized_relative_path>_start/_end` (relative to the component
- * dir, '/' and '.' replaced with '_'). */
-extern const uint8_t g_model_freeze_start[] asm("_binary_model_model_beijing_freeze_int8_tflite_start");
-extern const uint8_t g_model_freeze_end[]   asm("_binary_model_model_beijing_freeze_int8_tflite_end");
-extern const uint8_t g_model_nofreeze_start[] asm("_binary_model_model_beijing_nofreeze_int8_tflite_start");
-extern const uint8_t g_model_nofreeze_end[]   asm("_binary_model_model_beijing_nofreeze_int8_tflite_end");
+ * `_binary_<sanitized_file_name>_start/_end`. Only the file's BASENAME is
+ * used (data_file_embed_asm.cmake: get_filename_component(... NAME)), not
+ * the "model/" directory, with non-identifier chars replaced by '_'. */
+extern const uint8_t g_model_freeze_start[] asm("_binary_model_beijing_freeze_int8_tflite_start");
+extern const uint8_t g_model_freeze_end[]   asm("_binary_model_beijing_freeze_int8_tflite_end");
+extern const uint8_t g_model_nofreeze_start[] asm("_binary_model_beijing_nofreeze_int8_tflite_start");
+extern const uint8_t g_model_nofreeze_end[]   asm("_binary_model_beijing_nofreeze_int8_tflite_end");
 
 /* Mean/std for z-score normalization -- IDENTICAL for both models (both
  * trained on the same HCMC train split, see model_contract_*.json "mean"/
