@@ -1,0 +1,67 @@
+{
+  "checkpoint": "outputs_binary_beijing_nofreeze",
+  "channels": [
+    "Temperature",
+    "Humidity",
+    "CO",
+    "NO2"
+  ],
+  "window_len": 24,
+  "mean": [
+    27.428218841552734,
+    58.998680114746094,
+    1056.4512939453125,
+    77.08460998535156
+  ],
+  "std": [
+    4.4997711181640625,
+    27.306726455688477,
+    644.6595458984375,
+    42.701316833496094
+  ],
+  "class_names": [
+    "an_toan",
+    "canh_bao"
+  ],
+  "input_shape": [
+    1,
+    4,
+    24
+  ],
+  "tflite_file": "outputs_binary_beijing_nofreeze_int8.tflite",
+  "onnx_opset": 13,
+  "verify_argmax_agreement": 0.9768802228412257,
+  "verify_pytorch_safety_metrics": {
+    "alert_recall": 0.8095238095238095,
+    "alert_precision": 0.08703071672354949,
+    "false_alarm_rate": 0.15168698610717324,
+    "n_missed_alerts": 12,
+    "n_false_alarms": 535,
+    "n_alert_windows_total": 63
+  },
+  "verify_tflite_safety_metrics": {
+    "alert_recall": 0.8095238095238095,
+    "alert_precision": 0.08963093145869948,
+    "false_alarm_rate": 0.146867025800964,
+    "n_missed_alerts": 12,
+    "n_false_alarms": 518,
+    "n_alert_windows_total": 63
+  },
+  "quant_info": {
+    "input_dtype": "<class 'numpy.int8'>",
+    "input_shape": [
+      1,
+      24,
+      4
+    ],
+    "input_scale": 0.060718584805727005,
+    "input_zero_point": -98,
+    "output_dtype": "<class 'numpy.int8'>",
+    "output_shape": [
+      1,
+      2
+    ],
+    "output_scale": 0.10740490257740021,
+    "output_zero_point": 4
+  }
+}
