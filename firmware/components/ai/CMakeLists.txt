@@ -1,15 +1,11 @@
 idf_component_register(
     SRCS
-        "device_mode.c"
+        "ai.c"
     INCLUDE_DIRS
         "include"
     PRIV_REQUIRES
-        ai
-        buzzer
         config
-        display_service
         json
-        nvs_flash
-        relay
+        log
         sa_mqtt
 )

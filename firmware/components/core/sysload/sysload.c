@@ -34,6 +34,7 @@
 #include "relay.h"
 #include "device_mode.h"
 #include "display_service.h"
+#include "ai.h"
 
 #include "cJSON.h"
 
@@ -611,6 +612,46 @@ static esp_err_t handle_relay_set(const char *type, const char *json_payload)
 }
 #endif
 
+#if SA_ENABLE_AI
+static esp_err_t handle_ai_set(const char *type, const char *json_payload)
+{
+    (void)type;
+
+    if (json_payload == NULL) {
+        ESP_LOGW(TAG, "ai_set command: missing payload");
+        return ESP_ERR_INVALID_ARG;
+    }
+
+    cJSON *root = cJSON_ParseWithLength(json_payload, strlen(json_payload));
+    if (root == NULL) {
+        ESP_LOGW(TAG, "ai_set command: invalid JSON payload");
+        return ESP_ERR_INVALID_ARG;
+    }
+
+    cJSON *j_state = cJSON_GetObjectItemCaseSensitive(root, "state");
+    if (!cJSON_IsBool(j_state)) {
+        ESP_LOGW(TAG, "ai_set command: state must be boolean");
+        cJSON_Delete(root);
+        return ESP_ERR_INVALID_ARG;
+    }
+
+    bool enabled = cJSON_IsTrue(j_state);
+    cJSON_Delete(root);
+
+    if (!device_mode_get()) {
+        ESP_LOGW(TAG, "ai_set command rejected: device mode is off");
+        return ESP_ERR_INVALID_STATE;
+    }
+
+    esp_err_t err = ai_set_enabled(enabled);
+    if (err != ESP_OK) {
+        ESP_LOGW(TAG, "ai_set command failed: %s", esp_err_to_name(err));
+    }
+
+    return err;
+}
+#endif
+
 static esp_err_t handle_device_mode(const char *type, const char *json_payload)
 {
     (void)type;
@@ -865,10 +906,20 @@ static void init_runtime_control_stage(const char *resolved_id)
         reboot_after_boot_error("device_mode_init", err);
     }
 
+#if SA_ENABLE_AI
+    err = ai_init(resolved_id);
+    if (err != ESP_OK) {
+        reboot_after_boot_error("ai_init", err);
+    }
+#endif
+
 #if SA_ENABLE_RELAYS
     register_command_handler_or_reboot("relay_set", handle_relay_set);
 #endif
     register_command_handler_or_reboot("device_mode", handle_device_mode);
+#if SA_ENABLE_AI
+    register_command_handler_or_reboot("ai_set", handle_ai_set);
+#endif
 }
 
 static void start_mqtt_stage(const char *broker_uri, const char *resolved_id, const char *secret_key)

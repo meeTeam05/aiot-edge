@@ -27,6 +27,10 @@
 #include "relay.h"
 #endif
 
+#if SA_ENABLE_AI
+#include "ai.h"
+#endif
+
 #define DEVICE_MODE_NVS_NAMESPACE "device"
 #define DEVICE_MODE_NVS_KEY       "mode"
 #define DEVICE_MODE_BEEP_MS       50
@@ -108,6 +112,12 @@ static esp_err_t publish_mode_off_shadow(void)
     cJSON_AddBoolToObject(root, "relay_2", false);
     cJSON_AddBoolToObject(root, "relay_3", false);
 #endif
+#if SA_ENABLE_AI
+    cJSON_AddBoolToObject(root, "ai_enabled", ai_get_enabled());
+#else
+    /* Clears a stale ai_enabled left in the merged server shadow by an earlier AI build. */
+    cJSON_AddNullToObject(root, "ai_enabled");
+#endif
     cJSON_AddNullToObject(root, "temperature");
     cJSON_AddNullToObject(root, "humidity");
     cJSON_AddNullToObject(root, "co_ppm");
@@ -140,6 +150,12 @@ static esp_err_t publish_mode_on_shadow(void)
     cJSON_AddBoolToObject(root, "relay_1", relay_states[0]);
     cJSON_AddBoolToObject(root, "relay_2", relay_states[1]);
     cJSON_AddBoolToObject(root, "relay_3", relay_states[2]);
+#endif
+#if SA_ENABLE_AI
+    cJSON_AddBoolToObject(root, "ai_enabled", ai_get_enabled());
+#else
+    /* Clears a stale ai_enabled left in the merged server shadow by an earlier AI build. */
+    cJSON_AddNullToObject(root, "ai_enabled");
 #endif
     cJSON_AddNumberToObject(root, "ts", (double)time(NULL));
 

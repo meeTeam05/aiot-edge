@@ -187,6 +187,28 @@ menu "Smart Air Configuration"
 
     endmenu
 
+    # On-device AI
+    menu "AI (on-device inference)"
+
+        config SA_ENABLE_AI
+            bool "Enable on-device AI component"
+            default n
+            help
+                When disabled, the AI component is not initialized and the
+                MQTT ai_set command handler is not registered (the device
+                acks ai_set as an unsupported command).
+
+        config SA_AI_ENABLED_AT_BOOT
+            bool "Run AI inference by default after boot"
+            depends on SA_ENABLE_AI
+            default y
+            help
+                Runtime AI state applied on every boot. The app can toggle it
+                with the ai_set command, but the choice is kept in memory only
+                (not NVS), so a reboot always restores this default.
+
+    endmenu
+
     # I2C Bus
     menu "I2C Bus (SHT3x + DS3231)"
 
