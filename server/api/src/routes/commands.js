@@ -56,6 +56,16 @@ export function validateCommandPayload(payload) {
         return { ok: true };
     }
 
+    if (payload.type === 'ai_set') {
+        if (!hasOnlyKeys(payload, ['type', 'state'])) {
+            return { ok: false, error: 'ai_set accepts only type, state' };
+        }
+        if (typeof payload.state !== 'boolean') {
+            return { ok: false, error: 'ai_set.state must be boolean' };
+        }
+        return { ok: true };
+    }
+
     if (payload.type === 'set_time') {
         if (!hasOnlyKeys(payload, ['type', 'ts'])) {
             return { ok: false, error: 'set_time accepts only type, ts' };
@@ -160,6 +170,41 @@ export default async function commandsRoutes(fastify) {
         const payload = {
             type: 'device_mode',
             mode: request.body.mode,
+        };
+
+        const commandId = await sendCommand(fastify, deviceId, payload, userId);
+        return reply.code(201).send({ command_id: commandId });
+    });
+
+    fastify.post('/devices/:id/ai', {
+        preHandler: fastify.authenticate,
+        config: { rateLimit: RATE_LIMIT_COMMAND },
+        schema: {
+            params: {
+                type: 'object',
+                properties: {
+                    id: { type: 'string' },
+                },
+                required: ['id'],
+            },
+            body: {
+                type: 'object',
+                properties: {
+                    state: { type: 'boolean' },
+                },
+                required: ['state'],
+            },
+        },
+    }, async (request, reply) => {
+        const deviceId = normalizeDeviceId(request.params.id);
+        if (!deviceId) return reply.code(400).send({ error: 'Invalid device ID' });
+        const userId = request.user.sub;
+        const allowed = await checkDeviceAccess(fastify, deviceId, userId);
+        if (!allowed) return reply.code(403).send({ error: 'Forbidden' });
+
+        const payload = {
+            type: 'ai_set',
+            state: request.body.state,
         };
 
         const commandId = await sendCommand(fastify, deviceId, payload, userId);

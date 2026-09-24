@@ -38,4 +38,5 @@ export const COMMAND_TYPES = Object.freeze([
     'calibrate_co',
     'calibrate_no2',
     'set_time',
+    'ai_set',
 ]);
