@@ -8,7 +8,7 @@
 
 #include "sensor_task.h"
 
-#include "ai_input.h"
+#include "ai.h"
 #include "cJSON.h"
 #include "display_service.h"
 #include "esp_log.h"
@@ -297,15 +297,10 @@ static void sensor_task_fn(void *arg)
         };
         display_service_set_sensor_snapshot(&display_snapshot);
 
-        /* Feed the on-device AI windowing buffer (ai/ai_input component) --
-         * cheap (a handful of float adds into a static accumulator, see
-         * ai/ai_input/src/ai_input.c), always active regardless of
-         * CONFIG_SA_AI_ENABLED (only ai_scheduler's relay/buzzer/MQTT
-         * actuation is gated behind that flag, see ai/README.md). Requires
-         * ALL 4 channels valid this poll -- ai_input averages per-hour, and
-         * a partial sample would skew that mean away from what the model
-         * was trained on. Gas readings are converted ppm -> ug/m3, the unit
-         * of the station data the model was trained on. */
+        /* On-device AI (components/ai): every poll goes into the 24h window of
+         * hourly means; a poll missing any of the 4 channels is skipped
+         * (valid=false). Gas readings are converted ppm -> ug/m3, the unit of
+         * the station data the model was trained on. No-op when AI is off. */
         ai_sensor_sample_t ai_sample = {
             .temperature_c = temperature,
             .humidity_pct = humidity,
@@ -314,7 +309,7 @@ static void sensor_task_fn(void *arg)
             .valid = have_sht && have_co && have_no2,
             .timestamp = timestamp,
         };
-        ai_input_feed_sample(&ai_sample);
+        ai_feed_sample(&ai_sample);
 
         /* Telemetry: always publish null for unavailable sensor fields. */
         cJSON *root = cJSON_CreateObject();

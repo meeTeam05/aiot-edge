@@ -10,7 +10,7 @@ idf_component_register(
         gm702b
         sht3x
     PRIV_REQUIRES
-        ai_input
+        ai
         display_service
         freertos
         json
