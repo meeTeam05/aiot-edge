@@ -297,7 +297,7 @@ static void sensor_task_fn(void *arg)
         };
         display_service_set_sensor_snapshot(&display_snapshot);
 
-        /* On-device AI (components/ai): every poll goes into the 24h window of
+        /* On-device AI (components/core/ai): every poll goes into the 24h window of
          * hourly means; a poll missing any of the 4 channels is skipped
          * (valid=false). Gas readings are converted ppm -> ug/m3, the unit of
          * the station data the model was trained on. No-op when AI is off. */
