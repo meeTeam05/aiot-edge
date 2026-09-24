@@ -105,7 +105,7 @@ flowchart TD
 15. start local HTTP server trước MQTT login đầu tiên
 16. seed system clock rồi thử SNTP sync best-effort
 17. nếu chưa có `secret_key` thì dừng tại đây và chờ `POST /api/config`
-18. init buzzer, relay, device mode, rồi register runtime command handlers
+18. init buzzer, relay, device mode, AI runtime state (nếu `SA_ENABLE_AI=y`), rồi register runtime command handlers
 19. register time-sync callback và shadow-sync callback cho MQTT
 20. start MQTT client
 21. start OTA task
@@ -367,6 +367,7 @@ Các command path đang có trong firmware:
 - `set_time`
 - `calibrate_co`
 - `calibrate_no2`
+- `ai_set` (chỉ khi `SA_ENABLE_AI=y`)
 
 `set_config` bị reject trên MQTT; provisioning path được support là local `POST /api/config`. OTA cũng không đi qua generic command topic mà đi qua `device/{id}/ota/update`.
 
