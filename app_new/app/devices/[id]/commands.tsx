@@ -51,6 +51,8 @@ function formatCommand(command: Command): { icon: typeof AppIcons.bolt; label: s
       return { icon: AppIcons.cog, label: 'Calibrate CO sensor' };
     case 'calibrate_no2':
       return { icon: AppIcons.cog, label: 'Calibrate NO₂ sensor' };
+    case 'ai_set':
+      return { icon: AppIcons.ai, label: `AI: ${command.payload.state === true ? 'ON' : 'OFF'}` };
     default:
       return { icon: AppIcons.device, label: type };
   }
