@@ -49,6 +49,6 @@ direct_dependencies:
 - espressif/mqtt
 - idf
 - lvgl/lvgl
-manifest_hash: 26e1753fa94d1e4a6c2bf0170246999a196e0e8fb09c9fa4a99894ac7822cd05
+manifest_hash: f410fdba1ea38bcfbd40420f0c3dd92bda42494aebe3b663cdee4fccea04bc0e
 target: esp32s3
 version: 2.0.0
