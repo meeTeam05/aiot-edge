@@ -10,6 +10,8 @@ test('generic command validation accepts supported command schemas', () => {
         { type: 'set_time', ts: 1777631761 },
         { type: 'calibrate_co' },
         { type: 'calibrate_no2' },
+        { type: 'ai_set', state: true },
+        { type: 'ai_set', state: false },
     ];
 
     for (const payload of validPayloads) {
@@ -33,6 +35,10 @@ test('generic command validation rejects invalid command shapes', () => {
         { type: 'device_mode', mode: 'auto' },
         { type: 'set_time', ts: 1777631761000 },
         { type: 'calibrate_co', value: 1 },
+        { type: 'ai_set' },
+        { type: 'ai_set', state: 'true' },
+        { type: 'ai_set', state: 1 },
+        { type: 'ai_set', state: true, extra: true },
     ];
 
     for (const payload of invalidPayloads) {

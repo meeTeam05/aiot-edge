@@ -92,3 +92,17 @@ test('waitForCommandCompletion throws once the timeout elapses', async () => {
     }),
   ).rejects.toThrow(/did not finish/);
 });
+
+test('setAi posts the typed AI command and returns the command id', async () => {
+  const { service, mock } = makeService();
+  mock.onPost('/devices/aa:bb:cc:dd:ee:ff/ai', { state: true }).reply(201, { command_id: 'cmd-ai' });
+
+  await expect(service.setAi('AA:BB:CC:DD:EE:FF', true)).resolves.toBe('cmd-ai');
+});
+
+test('setAi surfaces the server error message', async () => {
+  const { service, mock } = makeService();
+  mock.onPost('/devices/aa:bb:cc:dd:ee:ff/ai').reply(403, { error: 'Forbidden' });
+
+  await expect(service.setAi('aa:bb:cc:dd:ee:ff', false)).rejects.toMatchObject({ message: 'Forbidden' });
+});

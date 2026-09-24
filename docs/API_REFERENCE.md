@@ -59,6 +59,7 @@
 | POST   | `/api/devices/:id/command`        |   🔒   |   30/min   | Gửi command                                               |
 | POST   | `/api/devices/:id/relay/:channel` |   🔒   |   30/min   | Điều khiển relay trực tiếp                                |
 | POST   | `/api/devices/:id/mode`           |   🔒   |   30/min   | Đổi mode thiết bị trực tiếp                               |
+| POST   | `/api/devices/:id/ai`             |   🔒   |   30/min   | Bật/tắt AI on-device (runtime, không lưu NVS)             |
 | GET    | `/api/devices/:id/commands`       |   🔒   |            | Lịch sử command                                           |
 | GET    | `/api/devices/:id/telemetry`      |   🔒   |            | Dữ liệu cảm biến                                          |
 | GET    | `/api/notifications`              |   🔒   |            | Feed thông báo thiết bị theo thời gian                    |
@@ -731,6 +732,7 @@ curl -X POST https://minhnhat05.xyz/api/devices/dc:b4:d9:13:ed:8c/command \
 | Đồng bộ thời gian | `{ "type": "set_time", "ts": 1777631761 }`           |
 | Calibrate CO      | `{ "type": "calibrate_co" }`                         |
 | Calibrate NO2     | `{ "type": "calibrate_no2" }`                        |
+| Bật/tắt AI        | `{ "type": "ai_set", "state": true }`                |
 
 > Calibration là maintenance command nhưng vẫn dùng quyền member như các command generic khác.
 
@@ -809,6 +811,41 @@ Typed endpoint để đổi mode thiết bị, tương đương payload command:
 | Không phải thành viên                | 403  | `"Forbidden"`              |
 
 **Internal:** Server chuẩn hóa thành command payload `device_mode`, lưu vào `commands`, rồi dispatch qua cùng luồng `sendCommand()` như endpoint generic.
+
+---
+
+### `POST /api/devices/:id/ai` 🔒
+
+**Rate limit:** 30/phút/IP
+Authorization: `checkDeviceAccess()`
+
+Typed endpoint để bật/tắt AI on-device, tương đương payload command:
+`{ "type": "ai_set", "state": <boolean> }`
+
+**Path params:**
+
+| Param | Type   | Ràng buộc        |
+| ----- | ------ | ---------------- |
+| `id`  | string | Device ID hợp lệ |
+
+**Request body:**
+
+```json
+{ "state": true }
+```
+
+**201 Created:**
+```json
+{ "command_id": "f47ac10b-58cc-4372-a567-0e02b2c3d479" }
+```
+
+| Error                  | Code | Message                   |
+| ---------------------- | ---- | ------------------------- |
+| Invalid MAC            | 400  | `"Invalid device ID"`     |
+| Body thiếu `state`     | 400  | Fastify schema validation |
+| Không phải thành viên  | 403  | `"Forbidden"`             |
+
+**Internal:** Server chuẩn hóa thành command payload `ai_set`, lưu vào `commands`, rồi dispatch qua cùng luồng `sendCommand()` như endpoint generic. Trạng thái chỉ nằm trong RAM của firmware: reboot sẽ về default Kconfig. `ai_enabled` không phải desired key nên server không gửi lại trạng thái cũ sau reconnect.
 
 ---
 

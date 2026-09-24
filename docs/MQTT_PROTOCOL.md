@@ -182,6 +182,7 @@ Các nguồn publish hiện tại:
 2. `relay_set()` sau khi relay thay đổi thành công.
 3. `device_mode_set()` khi đổi mode.
 4. `device_mode_publish_current_shadow()` ngay sau MQTT reconnect bootstrap.
+5. `ai_set_enabled()` sau khi đổi trạng thái AI (chỉ khi `SA_ENABLE_AI=y`).
 
 Ví dụ sensor patch:
 
@@ -205,6 +206,17 @@ Ví dụ relay delta:
   "ts": 1712345678
 }
 ```
+
+Ví dụ AI delta:
+
+```json
+{
+  "ai_enabled": true,
+  "ts": 1712345678
+}
+```
+
+Snapshot mode-on/mode-off cũng kèm `ai_enabled` (boolean khi build `SA_ENABLE_AI=y`, `null` khi build không có AI để xoá giá trị cũ trong shadow đã merge). App chỉ hiện công tắc AI khi `ai_enabled` là boolean.
 
 Ví dụ mode-off patch:
 
@@ -309,6 +321,7 @@ Generic command types mà API hiện chấp nhận:
 - `set_time`
 - `calibrate_co`
 - `calibrate_no2`
+- `ai_set`
 
 Bridge-side validation:
 
@@ -319,12 +332,13 @@ Bridge-side validation:
 - `device_mode` chỉ nhận `type`, `mode`.
 - `set_time` chỉ nhận `type`, `ts`.
 - `calibrate_*` chỉ nhận `type`.
+- `ai_set` chỉ nhận `type`, `state` (boolean).
 
 Firmware-side validation và handling:
 
 - Inbound payload cho `command` bị drop nếu tổng payload > `512` bytes.
 - `set_time` được xử lý trực tiếp trong MQTT component qua `mqtt_register_time_sync_cb`.
-- `relay_set`, `device_mode`, `calibrate_co`, `calibrate_no2` được dispatch qua bảng handler đăng ký bởi `sysload.c`.
+- `relay_set`, `device_mode`, `calibrate_co`, `calibrate_no2`, `ai_set` được dispatch qua bảng handler đăng ký bởi `sysload.c` (`ai_set` chỉ được đăng ký khi `SA_ENABLE_AI=y`).
 - `set_config` luôn bị firmware reject trên MQTT với log hướng dẫn dùng local `POST /api/config`.
 - Unsupported command type hoặc thiếu field -> command ack `error`.
 
@@ -361,6 +375,24 @@ Behavior:
 - `mode` phải là `on` hoặc `off`.
 - Chuyển OFF sẽ publish final null telemetry rồi publish mode-off shadow.
 - Chuyển ON sẽ enable sensor task và publish mode-on shadow với relay state hiện tại.
+
+#### `ai_set`
+
+```json
+{
+  "command_id": "f47ac10b-58cc-4372-a567-0e02b2c3d479",
+  "type": "ai_set",
+  "state": true
+}
+```
+
+Behavior:
+
+- `state` phải là boolean.
+- Trả `ESP_ERR_INVALID_STATE` (ack `error`) nếu `device_mode` đang OFF.
+- Gọi `ai_set_enabled(state)`: chỉ đổi cờ trong RAM, không lưu NVS; reboot về default Kconfig.
+- Thành công sẽ publish `shadow/report` với `ai_enabled`.
+- Build `SA_ENABLE_AI=n` không đăng ký handler nên lệnh bị ack `error` (unsupported command type).
 
 #### `set_time`
 

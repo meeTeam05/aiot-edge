@@ -40,6 +40,7 @@ import {
   Radar,
   Download,
   QrCode,
+  Sparkles,
 } from 'lucide-react-native';
 
 export const AppIcons = {
@@ -86,4 +87,5 @@ export const AppIcons = {
   radar: Radar,
   download: Download,
   qr: QrCode,
+  ai: Sparkles,
 } as const;

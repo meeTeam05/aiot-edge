@@ -341,6 +341,17 @@ export class DeviceService {
     }
   }
 
+  /** Sends a typed AI toggle command (runtime only, not persisted) and returns the command id. */
+  async setAi(deviceId: string, state: boolean): Promise<string> {
+    try {
+      const normalizedDeviceId = normalizeDeviceId(deviceId);
+      const res = await this.client.post(`/devices/${normalizedDeviceId}/ai`, { state });
+      return commandIdFromBody(res.data);
+    } catch (err) {
+      throw mapError(err);
+    }
+  }
+
   async getCommands(deviceId: string, options: { limit?: number; offset?: number } = {}): Promise<Command[]> {
     try {
       const normalizedDeviceId = normalizeDeviceId(deviceId);

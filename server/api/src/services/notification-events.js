@@ -27,6 +27,8 @@ function commandSuccessTitle(payload) {
         return 'NO2 calibration completed';
     case 'set_time':
         return 'Device time synchronized';
+    case 'ai_set':
+        return `AI ${command.state === true ? 'enabled' : 'disabled'}`;
     default:
         return 'Command completed';
     }
@@ -45,6 +47,8 @@ function commandErrorTitle(payload, status) {
         return `NO2 calibration ${status === 'timeout' ? 'timed out' : 'failed'}`;
     case 'set_time':
         return `Time sync ${status === 'timeout' ? 'timed out' : 'failed'}`;
+    case 'ai_set':
+        return `AI toggle ${status === 'timeout' ? 'timed out' : 'failed'}`;
     default:
         return `Command ${status === 'timeout' ? 'timed out' : 'failed'}`;
     }

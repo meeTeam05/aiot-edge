@@ -5,7 +5,8 @@ export const COMMAND_PENDING_UI_TIMEOUT_MS = 5_000;
 
 export type ExpectedReportedState =
   | { kind: 'mode'; mode: 'on' | 'off' }
-  | { kind: 'relay'; channel: 1 | 2 | 3; state: boolean };
+  | { kind: 'relay'; channel: 1 | 2 | 3; state: boolean }
+  | { kind: 'ai'; state: boolean };
 
 export type CommandResolution =
   | { state: 'pending' | 'sent'; commandId: string }
@@ -60,6 +61,9 @@ export function matchesReportedShadow(shadow: DeviceShadow | null, expected: Exp
   if (shadow === null) return false;
   if (expected.kind === 'mode') {
     return typeof shadow.reported.mode === 'string' && (shadow.reported.mode as string).toLowerCase() === expected.mode;
+  }
+  if (expected.kind === 'ai') {
+    return shadow.reported.ai_enabled === expected.state;
   }
   return shadow.reported[`relay_${expected.channel}`] === expected.state;
 }

@@ -35,6 +35,10 @@ export interface ModeDeviceControl extends DeviceControl {
   submit: (mode: 'on' | 'off') => Promise<void>;
 }
 
+export interface AiDeviceControl extends DeviceControl {
+  submit: (state: boolean) => Promise<void>;
+}
+
 interface ReconciliationOptions {
   commands: Command[];
   shadow: DeviceShadow | null;
@@ -190,11 +194,36 @@ function useModeDeviceControl(deviceId: string, options: ReconciliationOptions):
   };
 }
 
+function useAiDeviceControl(deviceId: string, options: ReconciliationOptions): AiDeviceControl {
+  const reconciliation = usePendingCommandReconciliation(options);
+  const submit = useCallback(
+    async (state: boolean) => {
+      if (reconciliation.isPending) return;
+      reconciliation.begin();
+      try {
+        const commandId = await deviceService.setAi(deviceId, state);
+        reconciliation.track(commandId, { kind: 'ai', state });
+      } catch (error) {
+        reconciliation.failSubmission(error, 'Failed to toggle AI.');
+      }
+    },
+    [deviceId, reconciliation],
+  );
+  return {
+    commandId: reconciliation.commandId,
+    errorMessage: reconciliation.errorMessage,
+    isPending: reconciliation.isPending,
+    state: reconciliation.state,
+    submit,
+  };
+}
+
 export function useDeviceControls({ commands, deviceId, refetchShadow, shadow }: ReconciliationOptions & { deviceId: string }) {
   // Deliberately independent: a pending mode command disables only itself, not the relays.
   const fan = useRelayDeviceControl(deviceId, 1, { commands, shadow, refetchShadow });
   const lamp = useRelayDeviceControl(deviceId, 2, { commands, shadow, refetchShadow });
   const filter = useRelayDeviceControl(deviceId, 3, { commands, shadow, refetchShadow });
   const mode = useModeDeviceControl(deviceId, { commands, shadow, refetchShadow });
-  return { fan, filter, lamp, mode };
+  const ai = useAiDeviceControl(deviceId, { commands, shadow, refetchShadow });
+  return { ai, fan, filter, lamp, mode };
 }
