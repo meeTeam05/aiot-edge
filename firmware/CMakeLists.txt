@@ -3,7 +3,7 @@ cmake_minimum_required(VERSION 3.16)
 set(IDF_TARGET esp32s3)
 
 set(EXTRA_COMPONENT_DIRS
-    components/ai
+    components/core/ai
     components/config
     components/core/display_service
     components/core/device_mode
@@ -26,7 +26,7 @@ set(EXTRA_COMPONENT_DIRS
     components/drivers/spi_bus
     components/drivers/spi_devices/ili9225
     components/ota
-    components/ai
+    components/core/ai
 )
 
 include($ENV{IDF_PATH}/tools/cmake/project.cmake)

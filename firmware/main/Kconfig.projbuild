@@ -175,7 +175,7 @@ menu "Smart Air Configuration"
             bool "Enable on-device AI air-quality alert"
             default n
             help
-                Runs the TFLite Micro alert model (components/ai) on the
+                Runs the TFLite Micro alert model (components/core/ai) on the
                 24h window of temperature/humidity/CO/NO2 hourly means.
                 On alert it beeps the buzzer and publishes immediately to
                 device/{id}/ai/state. Requires PSRAM for the tensor arena.
