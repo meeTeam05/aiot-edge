@@ -5,7 +5,7 @@
  *
  * The model was trained on 24 CONSECUTIVE HOURLY samples (1 row/hour) from a
  * reference air-quality station -- see `ungdungdidong/CLAUDE.md` mục 2 and
- * `ai/README.md`. Firmware polls the physical sensors every
+ * `components/ai/README.md`. Firmware polls the physical sensors every
  * `SA_SENSOR_POLLING_INTERVAL` seconds (default 5s), which is a completely
  * different cadence. Feeding 24 raw 5s samples straight into the model would
  * be ~2 minutes of near-constant readings -- nothing like the diurnal
@@ -19,7 +19,7 @@
  *
  * Deliberately plain C99 (`<stdint.h>`/`<stdbool.h>`/`<time.h>` only, no
  * ESP-IDF headers) so the windowing logic can be unit-tested with a normal
- * host compiler -- see `ai/tools/test_ai_input_host.c`.
+ * host compiler -- see `tools/test_ai_input_host.c`.
  *
  * Copyright (C) 2026 MinhNhat & BaoViet
  */
@@ -46,7 +46,7 @@ extern "C" {
 
 /** Channel order matches the model contract EXACTLY -- do not reorder.
  *  [Temperature, Humidity, CO, NO2] (ungdungdidong/CLAUDE.md mục 2,
- *  ai/inference/model/model_contract_*.json "channels"). */
+ *  model/model_contract_freeze.json "channels"). */
 typedef struct {
     float temperature_c;
     float humidity_pct;
@@ -76,8 +76,15 @@ void ai_input_reset(void);
  *    pipeline's own rule that a window is only valid across strictly
  *    consecutive hours (`src/data.py: pair_ok`, `ungdungdidong` repo). This
  *    avoids ever feeding the model a window with a hidden time discontinuity.
+ *
+ * The hour length is CONFIG_SA_AI_WINDOW_BUCKET_SEC on target (3600 in
+ * production; always 3600 on host builds).
+ *
+ * @return true if this sample closed out the previous hour (the window was
+ *         updated or reset), i.e. the caller should re-check readiness and
+ *         run inference; false otherwise.
  */
-void ai_input_feed_sample(const ai_sensor_sample_t *sample);
+bool ai_input_feed_sample(const ai_sensor_sample_t *sample);
 
 /**
  * @brief Fetch the current 24h window, oldest hour first.
@@ -86,7 +93,7 @@ void ai_input_feed_sample(const ai_sensor_sample_t *sample);
  *            completed hour -- matches the model's training window order
  *            (channel order: Temperature, Humidity, CO, NO2).
  * @return false if the buffer is not yet full (still warming up) -- caller
- *         must NOT run inference in that case (see ai/scheduler).
+ *         must NOT run inference in that case.
  */
 bool ai_input_get_window(float out[AI_INPUT_NUM_CHANNELS][AI_INPUT_WINDOW_LEN]);
 

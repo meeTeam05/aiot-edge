@@ -10,17 +10,26 @@
 
 #include <string.h>
 
-/* sensor_task writes and ai_scheduler reads from different cores, so every
+/* sensor_task writes and the ai task reads from different cores, so every
  * public entry point runs under a spinlock on target. Host builds (the
- * gcc unit test in ai/tools) have no FreeRTOS and are single-threaded. */
+ * gcc unit test in tools/) have no FreeRTOS and are single-threaded. */
 #ifdef ESP_PLATFORM
 #include "freertos/FreeRTOS.h"
+#include "sdkconfig.h"
 static portMUX_TYPE s_lock = portMUX_INITIALIZER_UNLOCKED;
 #define AI_INPUT_LOCK()   portENTER_CRITICAL(&s_lock)
 #define AI_INPUT_UNLOCK() portEXIT_CRITICAL(&s_lock)
 #else
 #define AI_INPUT_LOCK()   ((void)0)
 #define AI_INPUT_UNLOCK() ((void)0)
+#endif
+
+/* Seconds per window slot. 3600 (one hour) matches the training data; a
+ * shorter bucket is only for bench-testing (see SA_AI_WINDOW_BUCKET_SEC). */
+#if defined(CONFIG_SA_AI_WINDOW_BUCKET_SEC)
+#define AI_INPUT_BUCKET_SEC ((uint32_t)CONFIG_SA_AI_WINDOW_BUCKET_SEC)
+#else
+#define AI_INPUT_BUCKET_SEC 3600u
 #endif
 
 /* Ring buffer of 24 finalized hourly means, oldest-first read order. */
@@ -31,7 +40,7 @@ static uint32_t s_head = 0;        /* index where the NEXT finalized hour will b
 /* Current (in-progress) hour accumulator. */
 static double s_acc_sum[AI_INPUT_NUM_CHANNELS];
 static uint32_t s_acc_count = 0;
-static uint32_t s_acc_hour_bucket = 0;   /* epoch_seconds / 3600 for the hour being accumulated */
+static uint32_t s_acc_hour_bucket = 0;   /* timestamp / AI_INPUT_BUCKET_SEC for the slot being accumulated */
 static bool s_acc_active = false;
 
 /* Hour bucket of the most recently FINALIZED hour, used to detect gaps. */
@@ -108,13 +117,14 @@ static void finalize_current_hour(void)
     s_acc_active = false;
 }
 
-void ai_input_feed_sample(const ai_sensor_sample_t *sample)
+bool ai_input_feed_sample(const ai_sensor_sample_t *sample)
 {
     if (sample == NULL) {
-        return;
+        return false;
     }
 
-    uint32_t hour_bucket = sample->timestamp / 3600u;
+    uint32_t hour_bucket = sample->timestamp / AI_INPUT_BUCKET_SEC;
+    bool finalized = false;
 
     AI_INPUT_LOCK();
     if (!s_acc_active) {
@@ -122,6 +132,7 @@ void ai_input_feed_sample(const ai_sensor_sample_t *sample)
     } else if (hour_bucket != s_acc_hour_bucket) {
         finalize_current_hour();
         reset_accumulator(hour_bucket);
+        finalized = true;
     }
 
     /* Invalid samples still count towards hour-boundary detection above, not towards the mean. */
@@ -133,6 +144,7 @@ void ai_input_feed_sample(const ai_sensor_sample_t *sample)
         s_acc_count++;
     }
     AI_INPUT_UNLOCK();
+    return finalized;
 }
 
 bool ai_input_get_window(float out[AI_INPUT_NUM_CHANNELS][AI_INPUT_WINDOW_LEN])

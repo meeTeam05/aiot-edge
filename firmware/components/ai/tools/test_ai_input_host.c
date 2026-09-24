@@ -1,10 +1,10 @@
 /**
  * @file test_ai_input_host.c
  *
- * @brief Host-side unit test for ai/input (no ESP-IDF needed).
+ * @brief Host-side unit test for ai_input (no ESP-IDF needed).
  *
  * Build & run with a plain compiler, e.g.:
- *     gcc -std=c99 -I../ai_input/include test_ai_input_host.c ../ai_input/src/ai_input.c -o test_ai_input && ./test_ai_input
+ *     gcc -std=c99 -I../include test_ai_input_host.c ../src/ai_input.c -o test_ai_input && ./test_ai_input
  *
  * Copyright (C) 2026 MinhNhat & BaoViet
  */
@@ -25,13 +25,13 @@ static int g_failures = 0;
     } \
 } while (0)
 
-static void feed(uint32_t ts, float t, float h, float co, float no2, bool valid)
+static bool feed(uint32_t ts, float t, float h, float co, float no2, bool valid)
 {
     ai_sensor_sample_t s = {
         .temperature_c = t, .humidity_pct = h, .co_ugm3 = co, .no2_ugm3 = no2,
         .valid = valid, .timestamp = ts,
     };
-    ai_input_feed_sample(&s);
+    return ai_input_feed_sample(&s);
 }
 
 /* Test 1: 24 consecutive hours, several 5s-cadence samples per hour ->
@@ -109,11 +109,24 @@ static void test_all_invalid_hour_resets_buffer(void)
     CHECK(!ai_input_is_ready(), "buffer resets after an hour with 0 valid samples");
 }
 
+/* Test 4: feed() reports true only on the sample that closes out an hour --
+ * that is the signal the ai task uses to wake up and run inference. */
+static void test_feed_reports_hour_boundary(void)
+{
+    ai_input_reset();
+    CHECK(!feed(0, 25.0f, 50.0f, 100.0f, 10.0f, true), "first sample does not finalize");
+    CHECK(!feed(5, 25.0f, 50.0f, 100.0f, 10.0f, true), "same-hour sample does not finalize");
+    CHECK(!feed(3599, 25.0f, 50.0f, 100.0f, 10.0f, false), "invalid same-hour sample does not finalize");
+    CHECK(feed(3600, 25.0f, 50.0f, 100.0f, 10.0f, true), "first sample of next hour finalizes");
+    CHECK(!feed(3605, 25.0f, 50.0f, 100.0f, 10.0f, true), "following sample does not finalize again");
+}
+
 int main(void)
 {
     test_basic_windowing();
     test_gap_resets_buffer();
     test_all_invalid_hour_resets_buffer();
+    test_feed_reports_hour_boundary();
 
     if (g_failures == 0) {
         printf("\nAll tests passed.\n");
