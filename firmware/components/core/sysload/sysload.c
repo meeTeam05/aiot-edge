@@ -1146,8 +1146,7 @@ void sysload_init(void)
     ESP_LOGI(TAG, "No sensors enabled; sensor_task not started");
 #endif
 
-    /* 10b - On-device AI alert (components/core/ai): no-op unless SA_ENABLE_AI=y.
-     * A model/PSRAM failure only disables AI for this boot. */
+    /* 10b - On-device AI alert; a model/PSRAM failure only disables AI this boot. */
     esp_err_t ai_err = ai_start(resolved_id);
     if (ai_err != ESP_OK) {
         ESP_LOGW(TAG, "ai_start failed: %s; continuing without on-device AI", esp_err_to_name(ai_err));

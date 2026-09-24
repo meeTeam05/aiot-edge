@@ -175,11 +175,8 @@ menu "Smart Air Configuration"
             bool "Enable on-device AI air-quality alert"
             default n
             help
-                Runs the TFLite Micro alert model (components/core/ai) on the
-                24h window of temperature/humidity/CO/NO2 hourly means.
-                On alert it beeps the buzzer and publishes immediately to
-                device/{id}/ai/state. Requires PSRAM for the tensor arena.
-                When disabled, the ai component compiles to no-op stubs.
+                Runs the TFLite Micro alert model on the 24h sensor window;
+                requires PSRAM. When disabled, the ai component is a no-op stub.
 
         config SA_ENABLE_LED
             bool "Enable WS2812 RGB LED"
@@ -205,9 +202,8 @@ menu "Smart Air Configuration"
             depends on SA_ENABLE_AI
             default y
             help
-                Runtime AI state applied on every boot. The app can toggle it
-                with the ai_set command, but the choice is kept in memory only
-                (not NVS), so a reboot always restores this default.
+                Not persisted to NVS; a reboot always restores this default,
+                even after the app toggles it with the ai_set command.
 
         config SA_AI_TENSOR_ARENA_SIZE
             int "TFLite Micro tensor arena size (bytes)"
@@ -215,10 +211,8 @@ menu "Smart Air Configuration"
             default 24576
             range 8192 262144
             help
-                Working buffer for the TFLite Micro interpreter, allocated once
-                at boot from PSRAM (MALLOC_CAP_SPIRAM). The boot log prints the
-                arena bytes actually used after AllocateTensors(); if it reports
-                "AllocateTensors failed", increase this value.
+                PSRAM buffer for the interpreter. Increase if boot log shows
+                "AllocateTensors failed".
 
         config SA_AI_WINDOW_BUCKET_SEC
             int "Seconds per window slot (3600 = 1 hour, production)"
@@ -226,19 +220,16 @@ menu "Smart Air Configuration"
             default 3600
             range 5 3600
             help
-                The model is trained on 24 consecutive HOURLY means, so keep
-                3600 for real use. Lowering it (e.g. 10 with the demo preset)
-                fills the 24-slot window in minutes, which is only meant for
-                bench-testing the alert path (buzzer + MQTT) end to end.
+                Model is trained on 24 HOURLY means; keep 3600 for real use.
+                Lower (e.g. 10) only to bench-test the alert path end to end.
 
         config SA_AI_SELF_TEST
             bool "Run model self-test vectors at boot"
             depends on SA_ENABLE_AI
             default n
             help
-                Runs the known windows in ai_selftest_vectors.h through the
-                model once at boot and logs PASS/FAIL against the expected
-                results. Regenerate that file with tools/gen_selftest_vectors.py.
+                Runs ai_selftest_vectors.h against the model at boot and logs
+                PASS/FAIL. Regenerate with tools/gen_selftest_vectors.py.
 
     endmenu
 

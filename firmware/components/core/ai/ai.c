@@ -43,8 +43,8 @@ static TaskHandle_t s_task = NULL;
 static char s_ai_state_topic[96] = {0};
 static char s_shadow_topic[96] = {0};
 
-/* Three LONG beeps -- distinct from relay.c's single beep and device_mode's
- * three short (50 ms) beeps. Must stay within the buzzer queue depth (8). */
+/* Three long beeps, distinct from relay/device_mode patterns; stays within
+ * the buzzer queue depth (8). */
 static const buzzer_pattern_step_t kAlertPattern[] = {
     {.enabled = true, .duration_ms = 400},
     {.enabled = false, .duration_ms = 120},
@@ -83,8 +83,8 @@ static void publish_ai_state(const ai_result_t *result)
     cJSON_Delete(root);
 }
 
-/* Mirrors relay.c's relay_publish_delta(): the caller (ai_set_enabled) only
- * runs while device mode is on, so "mode" is hardcoded here too. */
+/* Mirrors relay.c's relay_publish_delta(); "mode" is hardcoded since the
+ * caller only runs while device mode is on. */
 static esp_err_t ai_publish_shadow_delta(bool enabled)
 {
     cJSON *root = cJSON_CreateObject();
@@ -116,8 +116,7 @@ static esp_err_t ai_publish_shadow_delta(bool enabled)
 }
 
 #if CONFIG_SA_AI_SELF_TEST
-/* Runs the known windows from ai_selftest_vectors.h and compares against the
- * expected result from the reference (host TFLite / Hung's pipeline). */
+/* Runs known windows from ai_selftest_vectors.h against the reference result. */
 static void run_self_test(void)
 {
 #if AI_SELFTEST_VECTOR_COUNT == 0
