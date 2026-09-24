@@ -1,0 +1,4 @@
+dependencies:
+  idf: ">=5.4,<5.5"
+  # TensorFlow Lite Micro for ESP32 (ESP Component Registry).
+  espressif/esp-tflite-micro: "^1.3"

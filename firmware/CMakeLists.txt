@@ -25,9 +25,7 @@ set(EXTRA_COMPONENT_DIRS
     components/drivers/spi_bus
     components/drivers/spi_devices/ili9225
     components/ota
-    ../ai/ai_input
-    ../ai/ai_inference
-    ../ai/ai_scheduler
+    components/ai
 )
 
 include($ENV{IDF_PATH}/tools/cmake/project.cmake)

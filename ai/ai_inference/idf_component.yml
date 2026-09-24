@@ -1,7 +1,0 @@
-dependencies:
-  idf: ">=5.4,<5.5"
-  # ESP Component Registry package for TensorFlow Lite Micro on ESP32.
-  # Verify the latest compatible version tag at
-  # https://components.espressif.com/components/espressif/esp-tflite-micro
-  # before building -- pin it here once confirmed against ESP-IDF 5.4.2.
-  espressif/esp-tflite-micro: "^1.0"
