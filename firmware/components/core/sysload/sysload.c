@@ -35,7 +35,6 @@
 #include "relay.h"
 #include "device_mode.h"
 #include "display_service.h"
-#include "ai.h"
 
 #include "cJSON.h"
 
