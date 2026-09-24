@@ -1,5 +1,20 @@
 # Rà soát tích hợp module AI (`ai/`) vào hệ thống
 
+> **Cập nhật 2026-09-24 (nhánh `feature/merge-temp`, theo Task 2).** Tài liệu bên dưới mô tả bản
+> gốc của `feature/ai-inference`. Sau khi merge, module đã được sửa lại như sau (chi tiết ở
+> [README.md](README.md)):
+> - Dời vào `firmware/components/ai/`, gộp thành 1 component `ai`. Kconfig đổi thành
+>   `SA_ENABLE_AI` và được map trong `config.h`.
+> - **Bỏ toàn bộ điều khiển relay** (ngoài phạm vi task): #5 và #6 không còn áp dụng.
+> - Chỉ dùng model **freeze** (recall 82.54%), bỏ ensemble và model `nofreeze`: #12 không còn áp dụng.
+> - Buzzer và publish không còn phụ thuộc relay. Khi ALERT thì bíp 3 tiếng dài và publish ngay.
+> - Chạy theo sự kiện: `ai_input` báo "vừa chốt 1 giờ" rồi đánh thức task AI, bỏ vòng lặp 30s: #8 đã sửa.
+> - Tensor arena cấp trong PSRAM (`MALLOC_CAP_SPIRAM`), interpreter dựng 1 lần lúc boot. Stack task
+>   8KB, không còn `now_ms()` 32-bit: #9 đã sửa.
+> - Thêm `ai_set_enabled()` / `ai_get_enabled()` cho Task 1, cùng self-test
+>   (`SA_AI_SELF_TEST`) và `SA_AI_WINDOW_BUCKET_SEC` để test nhanh.
+> - Vẫn còn mở: #2 (ACL cho thiết bị cũ), #10, #11, #13.
+
 Ngày rà soát: 2026-09-23 — nhánh `feature/ai-inference`.
 
 Tài liệu này tổng hợp các vấn đề phát hiện khi đưa module AI (dự báo cảnh báo chất lượng không khí
