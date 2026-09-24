@@ -1,13 +1,13 @@
 set(srcs
-    "src/ai.c"
-    "src/ai_input.c"
+    "ai.c"
+    "ai_input.c"
 )
 set(embed_files "")
 
 # The TFLite Micro wrapper and the embedded model are only built when the
 # feature is enabled; ai.c provides no-op stubs otherwise.
 if(CONFIG_SA_ENABLE_AI)
-    list(APPEND srcs "src/ai_inference.cpp")
+    list(APPEND srcs "ai_inference.cpp")
     list(APPEND embed_files "model/model_beijing_freeze_int8.tflite")
 endif()
 
