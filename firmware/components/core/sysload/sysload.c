@@ -906,20 +906,10 @@ static void init_runtime_control_stage(const char *resolved_id)
         reboot_after_boot_error("device_mode_init", err);
     }
 
-#if SA_ENABLE_AI
-    err = ai_init(resolved_id);
-    if (err != ESP_OK) {
-        reboot_after_boot_error("ai_init", err);
-    }
-#endif
-
 #if SA_ENABLE_RELAYS
     register_command_handler_or_reboot("relay_set", handle_relay_set);
 #endif
     register_command_handler_or_reboot("device_mode", handle_device_mode);
-#if SA_ENABLE_AI
-    register_command_handler_or_reboot("ai_set", handle_ai_set);
-#endif
 }
 
 static void start_mqtt_stage(const char *broker_uri, const char *resolved_id, const char *secret_key)
@@ -1156,12 +1146,15 @@ void sysload_init(void)
     ESP_LOGI(TAG, "No sensors enabled; sensor_task not started");
 #endif
 
-    /* 10b - On-device AI alert (components/ai): no-op unless SA_ENABLE_AI=y.
+    /* 10b - On-device AI alert (components/core/ai): no-op unless SA_ENABLE_AI=y.
      * A model/PSRAM failure only disables AI for this boot. */
     esp_err_t ai_err = ai_start(resolved_id);
     if (ai_err != ESP_OK) {
         ESP_LOGW(TAG, "ai_start failed: %s; continuing without on-device AI", esp_err_to_name(ai_err));
     }
+#if SA_ENABLE_AI
+    register_command_handler_or_reboot("ai_set", handle_ai_set);
+#endif
 
     /* 11 - Validate OTA firmware after all subsystems are running (SEC-03) */
     ota_validate_and_commit();
