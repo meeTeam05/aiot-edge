@@ -47,11 +47,14 @@ esp_err_t ai_start(const char *device_id);
 void ai_feed_sample(const ai_sensor_sample_t *sample);
 
 /**
- * @brief Runtime on/off switch (not persisted; every boot starts enabled
- *        when CONFIG_SA_ENABLE_AI=y). While disabled the window keeps
- *        filling but no inference, buzzer or publish happens.
+ * @brief Runtime on/off switch (not persisted; every boot resets to the
+ *        Kconfig default SA_AI_ENABLED_AT_BOOT). While disabled the window
+ *        keeps filling but no inference, buzzer or publish happens.
+ *
+ * @return ESP_OK on success. The new state is published to the shadow
+ *         (best effort; a publish failure is logged, not returned).
  */
-void ai_set_enabled(bool enabled);
+esp_err_t ai_set_enabled(bool enabled);
 
 /** @return Current runtime switch state; always false when AI is compiled out. */
 bool ai_get_enabled(void);

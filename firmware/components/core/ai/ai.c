@@ -38,9 +38,10 @@ static const char *TAG = "ai";
 #define AI_TASK_PRIORITY   3    /* below sensor_task(5) */
 
 static portMUX_TYPE s_enabled_lock = portMUX_INITIALIZER_UNLOCKED;
-static bool s_enabled = true; /* runtime default at every boot (not persisted) */
+static bool s_enabled = SA_AI_ENABLED_AT_BOOT; /* runtime default at every boot (not persisted) */
 static TaskHandle_t s_task = NULL;
 static char s_ai_state_topic[96] = {0};
+static char s_shadow_topic[96] = {0};
 
 /* Three LONG beeps -- distinct from relay.c's single beep and device_mode's
  * three short (50 ms) beeps. Must stay within the buzzer queue depth (8). */
@@ -80,6 +81,38 @@ static void publish_ai_state(const ai_result_t *result)
         cJSON_free(payload);
     }
     cJSON_Delete(root);
+}
+
+/* Mirrors relay.c's relay_publish_delta(): the caller (ai_set_enabled) only
+ * runs while device mode is on, so "mode" is hardcoded here too. */
+static esp_err_t ai_publish_shadow_delta(bool enabled)
+{
+    cJSON *root = cJSON_CreateObject();
+    if (root == NULL) {
+        ESP_LOGE(TAG, "ai_publish_shadow_delta: cJSON_CreateObject failed");
+        return ESP_ERR_NO_MEM;
+    }
+
+    cJSON_AddStringToObject(root, "mode", "on");
+    cJSON_AddBoolToObject(root, "ai_enabled", enabled);
+    cJSON_AddNumberToObject(root, "ts", (double)time(NULL));
+
+    char *payload = cJSON_PrintUnformatted(root);
+    cJSON_Delete(root);
+    if (payload == NULL) {
+        ESP_LOGE(TAG, "ai_publish_shadow_delta: cJSON_PrintUnformatted failed");
+        return ESP_ERR_NO_MEM;
+    }
+
+    int msg_id = mqtt_publish(s_shadow_topic, payload, 1, false);
+    cJSON_free(payload);
+
+    if (msg_id < 0) {
+        ESP_LOGW(TAG, "mqtt_publish failed; MQTT not ready yet");
+        return ESP_FAIL;
+    }
+
+    return ESP_OK;
 }
 
 #if CONFIG_SA_AI_SELF_TEST
@@ -157,6 +190,7 @@ esp_err_t ai_start(const char *device_id)
     }
 
     snprintf(s_ai_state_topic, sizeof(s_ai_state_topic), "device/%s/ai/state", device_id);
+    snprintf(s_shadow_topic, sizeof(s_shadow_topic), "device/%s/shadow/report", device_id);
 
     esp_err_t err = ai_inference_init();
     if (err != ESP_OK) {
@@ -203,7 +237,7 @@ void ai_feed_sample(const ai_sensor_sample_t *sample)
 
 #endif /* SA_ENABLE_AI */
 
-void ai_set_enabled(bool enabled)
+esp_err_t ai_set_enabled(bool enabled)
 {
 #if SA_ENABLE_AI
     bool changed = false;
@@ -215,12 +249,22 @@ void ai_set_enabled(bool enabled)
     }
     portEXIT_CRITICAL(&s_enabled_lock);
 
-    if (changed) {
-        ESP_LOGI(TAG, "AI runtime switch set to %s", enabled ? "on" : "off");
+    if (!changed) {
+        return ESP_OK;
     }
+
+    ESP_LOGI(TAG, "AI runtime switch set to %s", enabled ? "on" : "off");
+
+    esp_err_t err = ai_publish_shadow_delta(enabled);
+    if (err != ESP_OK) {
+        ESP_LOGW(TAG, "AI state changed locally but shadow publish failed: %s", esp_err_to_name(err));
+    }
+
+    return ESP_OK;
 #else
     (void)enabled;
     ESP_LOGW(TAG, "ai_set_enabled ignored: firmware built with SA_ENABLE_AI=n");
+    return ESP_OK;
 #endif
 }
 
