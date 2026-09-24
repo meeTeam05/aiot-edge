@@ -200,14 +200,6 @@ menu "Smart Air Configuration"
     # On-device AI
     menu "AI (on-device inference)"
 
-        config SA_ENABLE_AI
-            bool "Enable on-device AI component"
-            default n
-            help
-                When disabled, the AI component is not initialized and the
-                MQTT ai_set command handler is not registered (the device
-                acks ai_set as an unsupported command).
-
         config SA_AI_ENABLED_AT_BOOT
             bool "Run AI inference by default after boot"
             depends on SA_ENABLE_AI
@@ -216,6 +208,37 @@ menu "Smart Air Configuration"
                 Runtime AI state applied on every boot. The app can toggle it
                 with the ai_set command, but the choice is kept in memory only
                 (not NVS), so a reboot always restores this default.
+
+        config SA_AI_TENSOR_ARENA_SIZE
+            int "TFLite Micro tensor arena size (bytes)"
+            depends on SA_ENABLE_AI
+            default 24576
+            range 8192 262144
+            help
+                Working buffer for the TFLite Micro interpreter, allocated once
+                at boot from PSRAM (MALLOC_CAP_SPIRAM). The boot log prints the
+                arena bytes actually used after AllocateTensors(); if it reports
+                "AllocateTensors failed", increase this value.
+
+        config SA_AI_WINDOW_BUCKET_SEC
+            int "Seconds per window slot (3600 = 1 hour, production)"
+            depends on SA_ENABLE_AI
+            default 3600
+            range 5 3600
+            help
+                The model is trained on 24 consecutive HOURLY means, so keep
+                3600 for real use. Lowering it (e.g. 10 with the demo preset)
+                fills the 24-slot window in minutes, which is only meant for
+                bench-testing the alert path (buzzer + MQTT) end to end.
+
+        config SA_AI_SELF_TEST
+            bool "Run model self-test vectors at boot"
+            depends on SA_ENABLE_AI
+            default n
+            help
+                Runs the known windows in ai_selftest_vectors.h through the
+                model once at boot and logs PASS/FAIL against the expected
+                results. Regenerate that file with tools/gen_selftest_vectors.py.
 
     endmenu
 

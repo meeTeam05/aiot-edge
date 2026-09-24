@@ -32,6 +32,13 @@
 #define SA_ENABLE_RELAYS        CONFIG_SA_ENABLE_RELAYS
 #define SA_ENABLE_AI            CONFIG_SA_ENABLE_AI
 
+/** Runtime AI default after boot (0 when SA_ENABLE_AI is off and the symbol is undefined) */
+#if CONFIG_SA_AI_ENABLED_AT_BOOT
+#define SA_AI_ENABLED_AT_BOOT 1
+#else
+#define SA_AI_ENABLED_AT_BOOT 0
+#endif
+
 #define SA_FACTORY_RESET_PIN     CONFIG_SA_FACTORY_RESET_PIN
 #define SA_FACTORY_RESET_HOLD_MS CONFIG_SA_FACTORY_RESET_HOLD_MS
 
