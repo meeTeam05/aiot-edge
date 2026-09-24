@@ -105,12 +105,13 @@ flowchart TD
 15. start local HTTP server trước MQTT login đầu tiên
 16. seed system clock rồi thử SNTP sync best-effort
 17. nếu chưa có `secret_key` thì dừng tại đây và chờ `POST /api/config`
-18. init buzzer, relay, device mode, AI runtime state (nếu `SA_ENABLE_AI=y`), rồi register runtime command handlers
+18. init buzzer, relay, device mode, rồi register runtime command handlers
 19. register time-sync callback và shadow-sync callback cho MQTT
 20. start MQTT client
 21. start OTA task
 22. start sensor task nếu có sensor runtime hợp lệ, hoặc start demo sensor task khi `SA_DEMO_NO_PERIPHERALS=y`
-23. sau cùng gọi `ota_validate_and_commit()` để commit image OTA vừa boot nếu image đang ở trạng thái pending verify
+23. start AI runtime (`ai_start()`, nếu `SA_ENABLE_AI=y`) rồi register command handler `ai_set`; lỗi model/PSRAM chỉ log, không reboot
+24. sau cùng gọi `ota_validate_and_commit()` để commit image OTA vừa boot nếu image đang ở trạng thái pending verify
 
 Một vài ràng buộc kiến trúc đang encode trực tiếp trong boot flow:
 

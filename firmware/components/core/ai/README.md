@@ -25,9 +25,10 @@ SAFE  → publish immediately
 | Option | Where | Default | Notes |
 |---|---|---|---|
 | `SA_ENABLE_AI` | `main/Kconfig.projbuild` → Peripheral Enable/Disable, mapped in `config.h` | `n` | `n` compiles the component to no-op stubs (no TFLM, no model in flash) |
-| `SA_AI_TENSOR_ARENA_SIZE` | Smart-Air AI | 24576 | Allocated from PSRAM; boot log prints the bytes actually used |
-| `SA_AI_WINDOW_BUCKET_SEC` | Smart-Air AI | 3600 | Keep 3600 for real use; e.g. 10 fills the window in ~4 min for bench tests |
-| `SA_AI_SELF_TEST` | Smart-Air AI | `n` | Runs `ai_selftest_vectors.h` at boot and logs PASS/FAIL |
+| `SA_AI_ENABLED_AT_BOOT` | `main/Kconfig.projbuild` → AI (on-device inference) | `y` | Runtime switch default applied on every boot (not persisted to NVS) |
+| `SA_AI_TENSOR_ARENA_SIZE` | `main/Kconfig.projbuild` → AI (on-device inference) | 24576 | Allocated from PSRAM; boot log prints the bytes actually used |
+| `SA_AI_WINDOW_BUCKET_SEC` | `main/Kconfig.projbuild` → AI (on-device inference) | 3600 | Keep 3600 for real use; e.g. 10 fills the window in ~4 min for bench tests |
+| `SA_AI_SELF_TEST` | `main/Kconfig.projbuild` → AI (on-device inference) | `n` | Runs `ai_selftest_vectors.h` at boot and logs PASS/FAIL |
 | `CONFIG_SPIRAM*` | `sdkconfig.defaults` | Octal, caps-alloc only | Only explicit `MALLOC_CAP_SPIRAM` allocations use PSRAM. Missing PSRAM → AI disabled, device still boots |
 
 The buzzer only sounds if `SA_ENABLE_BUZZER=y` as well.
