@@ -1146,7 +1146,8 @@ void sysload_init(void)
     ESP_LOGI(TAG, "No sensors enabled; sensor_task not started");
 #endif
 
-    /* 10b - On-device AI alert; a model/PSRAM failure only disables AI this boot. */
+    /* 10b - On-device CO/NO2 early warning; a model/PSRAM failure only disables
+     * the model this boot (the QCVN rule keeps running). */
     esp_err_t ai_err = ai_start(resolved_id);
     if (ai_err != ESP_OK) {
         ESP_LOGW(TAG, "ai_start failed: %s; continuing without on-device AI", esp_err_to_name(ai_err));

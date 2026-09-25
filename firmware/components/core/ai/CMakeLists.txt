@@ -1,14 +1,15 @@
 set(srcs
     "ai.c"
-    "ai_input.c"
+    "gas_ews.c"
 )
 set(embed_files "")
 
 # The TFLite Micro wrapper and the embedded model are only built when the
-# feature is enabled; ai.c provides no-op stubs otherwise.
+# feature is enabled; ai.c provides no-op stubs otherwise. gas_ews.c is pure
+# C99 (also built by the host tests in tools/).
 if(CONFIG_SA_ENABLE_AI)
-    list(APPEND srcs "ai_inference.cpp")
-    list(APPEND embed_files "model/model_beijing_freeze_int8.tflite")
+    list(APPEND srcs "gas_ews_model.cpp")
+    list(APPEND embed_files "model/gas_ews_int8.tflite")
 endif()
 
 idf_component_register(

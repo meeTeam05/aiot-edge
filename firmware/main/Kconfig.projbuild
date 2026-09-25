@@ -172,11 +172,13 @@ menu "Smart Air Configuration"
                 When disabled, buzzer initialization and tone generation are skipped.
 
         config SA_ENABLE_AI
-            bool "Enable on-device AI air-quality alert"
+            bool "Enable on-device CO/NO2 early warning (QCVN 03:2019/BYT)"
             default n
             help
-                Runs the TFLite Micro alert model on the 24h sensor window;
-                requires PSRAM. When disabled, the ai component is a no-op stub.
+                QCVN STEL/TWA rule + early warning (projection OR TFLite Micro
+                model on a 20 min window, every 10s). Tensor arena in PSRAM
+                (internal RAM fallback). When disabled, the ai component is a
+                no-op stub.
 
         config SA_ENABLE_LED
             bool "Enable WS2812 RGB LED"
@@ -208,28 +210,14 @@ menu "Smart Air Configuration"
         config SA_AI_TENSOR_ARENA_SIZE
             int "TFLite Micro tensor arena size (bytes)"
             depends on SA_ENABLE_AI
-            default 24576
-            range 8192 262144
+            default 16384
+            range 4096 262144
             help
-                PSRAM buffer for the interpreter. Increase if boot log shows
-                "AllocateTensors failed".
-
-        config SA_AI_WINDOW_BUCKET_SEC
-            int "Seconds per window slot (3600 = 1 hour, production)"
-            depends on SA_ENABLE_AI
-            default 3600
-            range 5 3600
-            help
-                Model is trained on 24 HOURLY means; keep 3600 for real use.
-                Lower (e.g. 10) only to bench-test the alert path end to end.
-
-        config SA_AI_SELF_TEST
-            bool "Run model self-test vectors at boot"
-            depends on SA_ENABLE_AI
-            default n
-            help
-                Runs ai_selftest_vectors.h against the model at boot and logs
-                PASS/FAIL. Regenerate with tools/gen_selftest_vectors.py.
+                PSRAM buffer for the interpreter (internal RAM if PSRAM is
+                missing). Largest activation is ~1 KB; the boot log prints
+                "arena used X/Y B" -- trim to X plus margin, or raise it if
+                you see "AllocateTensors failed". The model self-test always
+                runs at boot and disables only the model on a mismatch.
 
     endmenu
 

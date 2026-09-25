@@ -12,6 +12,7 @@ idf_component_register(
     PRIV_REQUIRES
         ai
         display_service
+        esp_timer
         freertos
         json
         sa_mqtt
