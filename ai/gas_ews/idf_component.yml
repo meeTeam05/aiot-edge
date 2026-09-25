@@ -1,0 +1,4 @@
+dependencies:
+  idf: ">=5.4,<5.5"
+  # Same TFLite Micro package ai/ai_inference uses -- keep the two in sync.
+  espressif/esp-tflite-micro: "^1.0"

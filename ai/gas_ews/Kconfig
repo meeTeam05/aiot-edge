@@ -1,0 +1,13 @@
+menu "Smart-Air Gas Early Warning (QCVN 03:2019/BYT)"
+
+    config SA_GAS_EWS_ARENA_SIZE
+        int "TFLite Micro tensor arena for the gas_ews model (bytes)"
+        default 16384
+        range 4096 131072
+        help
+            Largest INT8 activation is 90x16 (1.4 KB); 16 KB is a safe
+            first guess, NOT a measurement. The boot log prints
+            "arena used X/Y B" -- trim to X plus some margin, or raise it if
+            you see "AllocateTensors failed".
+
+endmenu
