@@ -1106,11 +1106,11 @@ void sysload_init(void)
     ESP_LOGI(TAG, "No sensors enabled; sensor_task not started");
 #endif
 
-    /* 10b - On-device AI scheduler (ai/ai_scheduler): no-op unless
-     * CONFIG_SA_AI_ENABLED=y, see ai/README.md. Started right after
-     * sensor_task regardless of whether it actually launched, exactly like
-     * sensor_task itself -- ai_scheduler fails safe (never touches relay)
-     * while ai/ai_input's 24h buffer is still warming up or empty. */
+    /* 10b - On-device CO/NO2 early warning (ai/ai_scheduler + ai/gas_ews,
+     * QCVN 03:2019/BYT): no-op unless CONFIG_SA_AI_ENABLED=y, see
+     * ai/gas_ews/README.md. Started right after sensor_task regardless of
+     * whether it actually launched, exactly like sensor_task itself -- with
+     * no gas data gas_ews stays SAFE and the AI never touches the relay. */
     esp_err_t ai_err = ai_scheduler_start(resolved_id);
     if (ai_err != ESP_OK) {
         ESP_LOGW(TAG, "ai_scheduler_start failed: %s; continuing without on-device AI",

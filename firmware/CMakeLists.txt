@@ -25,8 +25,7 @@ set(EXTRA_COMPONENT_DIRS
     components/drivers/spi_bus
     components/drivers/spi_devices/ili9225
     components/ota
-    ../ai/ai_input
-    ../ai/ai_inference
+    ../ai/gas_ews
     ../ai/ai_scheduler
 )
 

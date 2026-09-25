@@ -3,19 +3,26 @@
  *
  * @brief The ONLY entry point the rest of firmware needs to know about the
  * `ai/` module: starts a FreeRTOS task that owns the whole
- * sensor -> ai_input -> ai_inference -> relay/buzzer/MQTT pipeline.
+ * sensor -> gas_ews (QCVN 03:2019/BYT) -> relay/buzzer/MQTT pipeline.
  *
  * Design constraints this module honors (see the approved plan and
- * ai/README.md for the full rationale):
+ * ai/gas_ews/README.md for the full rationale):
  *   - never calls relay_set()/buzzer_beep_ms() directly from more than this
  *     one task -- it is the single source of AI-driven actuation;
+ *   - observe-only unless SA_AI_CONTROL_RELAY=y: then it only publishes
+ *     `device/{id}/ai/state`;
  *   - never fights a human/app or the existing cloud `server/ai-service`
- *     for relay_1 (Fan): it detects "someone else changed the relay" by
- *     polling relay_get() and backs off for SA_AI_OVERRIDE_COOLDOWN_MIN
- *     minutes whenever that happens (see ai_scheduler.c);
+ *     for the Fan: it only switches off a Fan it switched on itself, and if
+ *     someone switches off "its" Fan it backs off for
+ *     SA_AI_OVERRIDE_COOLDOWN_MIN minutes (see ai_scheduler.c);
  *   - never blocks sensor_task/MQTT/OTA -- runs as its own low-priority task;
- *   - fails safe: any ai_infer() error, or the 24h warm-up window, means
- *     "do nothing to the relay", never "guess".
+ *   - reacts fast: gas_ews updates every 10s; the model predicts a QCVN
+ *     STEL exceedance 10 min ahead on a 20 min window, and the QCVN rule
+ *     (STEL 15 min / TWA 8h) runs independently of the model;
+ *   - fails safe: a model that fails its boot self-test or an inference
+ *     error only disables the model alarm, never the QCVN rule; without
+ *     gas data (preheat, outage) the state is SAFE and an AI-owned Fan is
+ *     released.
  *
  * Copyright (C) 2026 MinhNhat & BaoViet
  */

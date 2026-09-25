@@ -4,11 +4,11 @@ idf_component_register(
     INCLUDE_DIRS
         "include"
     REQUIRES
-        ai_input
-        ai_inference
+        gas_ews
     PRIV_REQUIRES
         buzzer
         device_mode
+        esp_timer
         freertos
         json
         relay

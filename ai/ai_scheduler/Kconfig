@@ -1,13 +1,40 @@
 menu "Smart-Air AI Scheduler"
 
     config SA_AI_ENABLED
-        bool "Enable on-device AI inference + auto Fan control"
+        bool "Enable on-device CO/NO2 early warning (publishes ai/state; see SA_AI_CONTROL_RELAY)"
         default n
         help
             Strictly opt-in for the first hardware bring-up (see
-            ai/README.md). When disabled, ai_scheduler_start() is a no-op:
-            no task is created, no relay/buzzer/MQTT calls are ever made --
-            firmware behaves exactly as it did before this feature existed.
+            ai/gas_ews/README.md). When disabled, ai_scheduler_start() is a
+            no-op: no task is created, no relay/buzzer/MQTT calls are ever
+            made. sensor_task still feeds gas_ews (a few float ops per poll).
+
+    config SA_AI_CONTROL_RELAY
+        bool "Let the AI switch the Fan relay and buzzer (otherwise observe-only)"
+        depends on SA_AI_ENABLED
+        default n
+        help
+            When disabled (default), the AI only publishes
+            device/{id}/ai/state and never touches the relay or buzzer.
+            Calibrate the GM702B/GM102B first (preheat >= 24h, then
+            calibrate_co / calibrate_no2): an uncalibrated GM102B reads ~2 ppm
+            NO2 in clean air, close to the QCVN STEL of 5.3 ppm. Run
+            observe-only for a few days and check ai/state before enabling.
+
+            When enabled, the AI only ever switches OFF a Fan it switched ON
+            itself -- a Fan switched on by a user is never switched off by
+            the AI. Buzzer: 3 short beeps on early warning, 5 long beeps
+            when a QCVN limit is exceeded.
+
+    config SA_AI_FAN_ON_LEVEL
+        int "Switch the Fan on from this level (1 = early warning, 2 = limit exceeded)"
+        depends on SA_AI_CONTROL_RELAY
+        default 1
+        range 1 2
+        help
+            1: ventilate as soon as the early warning predicts a QCVN STEL
+            exceedance within 10 minutes (earlier, more Fan runtime).
+            2: only once STEL or TWA is actually over the limit.
 
     config SA_AI_FAN_RELAY_CHANNEL
         int "Relay channel the AI controls (1-based)"
@@ -26,12 +53,11 @@ menu "Smart-Air AI Scheduler"
         default 30
         range 1 240
         help
-            Whenever the AI-controlled relay's actual state no longer
-            matches what the AI last commanded (detected by polling
-            relay_get(), no changes to relay.c/mqtt.c needed), the AI
-            scheduler assumes a human (app tap) or another controller (the
-            existing server/ai-service, if its own auto_mode is still on)
-            just took over, and stays hands-off on that channel for this
-            many minutes before resuming automatic control.
+            Whenever a Fan the AI switched on is found switched off
+            (detected by polling relay_get_all(), no changes to
+            relay.c/mqtt.c needed), the AI scheduler assumes a human (app
+            tap) or another controller just took over, and stays hands-off
+            on that channel for this many minutes before resuming automatic
+            control. device_mode OFF is not counted as an override.
 
 endmenu
