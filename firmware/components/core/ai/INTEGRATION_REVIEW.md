@@ -1,5 +1,14 @@
 # Rà soát tích hợp module AI (`ai/`) vào hệ thống
 
+> **Cập nhật 2026-09-26 (nhánh `feature/ai-gas-ews`).** Model AQI 24 giờ mô tả trong tài liệu này
+> đã được **thay** bằng cảnh báo sớm CO/NO2 theo QCVN 03:2019/BYT (`gas_ews`, xem [README.md](README.md)).
+> Tài liệu này giữ lại làm lịch sử. Với luồng mới:
+> - #10, #11, #14 (dữ liệu trạm ngoài trời, ngưỡng 0.5, model không phù hợp): không còn áp dụng.
+> - `SA_AI_SELF_TEST` và `SA_AI_WINDOW_BUCKET_SEC` đã bỏ: self-test luôn chạy lúc boot, cửa sổ model
+>   là 20 phút nên không cần chế độ test nhanh.
+> - Vẫn còn mở: #2 (ACL cho thiết bị cũ), #13 (server chưa đọc `ai/state`, schema đã đổi).
+> - Rà soát luồng mới: [REVIEW_HOAT_DONG.md](REVIEW_HOAT_DONG.md), [REVIEW_MODEL.md](REVIEW_MODEL.md).
+
 > **Cập nhật 2026-09-24 (nhánh `feature/merge-temp`, theo Task 2).** Tài liệu bên dưới mô tả bản
 > gốc của `feature/ai-inference`. Sau khi merge, module đã được sửa lại như sau (chi tiết ở
 > [README.md](README.md)):
