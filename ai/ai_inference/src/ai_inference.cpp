@@ -202,6 +202,7 @@ esp_err_t ai_infer(const float window[AI_INPUT_NUM_CHANNELS][AI_INPUT_WINDOW_LEN
     out->ready = false;
     out->signal = AI_SIGNAL_SAFE;
     out->confidence = 0.0f;
+    out->p_alert = 0.0f;
     out->error = ESP_OK;
 
     if (window == nullptr) {
@@ -230,6 +231,7 @@ esp_err_t ai_infer(const float window[AI_INPUT_NUM_CHANNELS][AI_INPUT_WINDOW_LEN
 
     out->ready = true;
     out->error = ESP_OK;
+    out->p_alert = avg_alert;
     if (avg_alert > avg_safe) {
         out->signal = AI_SIGNAL_ALERT;
         out->confidence = avg_alert;

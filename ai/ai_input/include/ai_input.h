@@ -53,6 +53,11 @@ typedef struct {
     float co_ugm3;       /**< ug/m3, NOT ppm -- see AI_CO_PPM_TO_UGM3. */
     float no2_ugm3;      /**< ug/m3, NOT ppm -- see AI_NO2_PPM_TO_UGM3. */
     bool valid;          /**< false if ANY of the 4 readings above failed this poll. */
+    /** Per-channel validity (model channel order), used by the short-term
+     *  EMA only: one failed sensor must not freeze the others' EMA (e.g. an
+     *  SHT fault hiding a real CO rise from the threshold rule). The hourly
+     *  mean still requires `valid`. `valid == true` implies all channels. */
+    bool channel_valid[AI_INPUT_NUM_CHANNELS];
     uint32_t timestamp;  /**< unix seconds for this sample (used only to bucket into an hour). */
 } ai_sensor_sample_t;
 
@@ -89,6 +94,64 @@ void ai_input_feed_sample(const ai_sensor_sample_t *sample);
  *         must NOT run inference in that case (see ai/scheduler).
  */
 bool ai_input_get_window(float out[AI_INPUT_NUM_CHANNELS][AI_INPUT_WINDOW_LEN]);
+
+/**
+ * @brief Same as ai_input_get_window(), plus a counter that increases by one
+ *        every time a new hour is finalized into the ring buffer.
+ *
+ * The window and the counter are read under the same lock, so a caller can
+ * run inference exactly once per new window by comparing `*version` with
+ * the value it saw last time -- independent of any wall clock (the hour
+ * buckets come from the sample timestamps, which may be DS3231 time rather
+ * than `time(NULL)`).
+ *
+ * @param version  optional (may be NULL); written even when the function
+ *                 returns false.
+ */
+bool ai_input_get_window_versioned(float out[AI_INPUT_NUM_CHANNELS][AI_INPUT_WINDOW_LEN], uint32_t *version);
+
+/**
+ * @brief Low-latency window for inference WITHIN the hour, not only at hour
+ *        boundaries.
+ *
+ * Newest slot (t=23) is the running mean of the in-progress hour (if it
+ * already has >= `min_current_samples` valid samples), the slots before it
+ * are the most recent contiguous finalized hours. If fewer than 24 real
+ * hours exist (warm-up / after a gap), the missing OLDEST slots are filled
+ * by repeating the oldest real hour (edge padding) -- `*real_hours` tells the
+ * caller how many slots are real so it can flag the result as provisional.
+ *
+ * @param real_hours  optional; number of non-padded slots (1..24).
+ * @return false only when there is no usable data at all.
+ */
+bool ai_input_get_live_window(float out[AI_INPUT_NUM_CHANNELS][AI_INPUT_WINDOW_LEN],
+                              uint32_t min_current_samples, uint32_t *real_hours);
+
+/** A channel's EMA goes stale after this many consecutive samples without a
+ *  valid reading for it (~60s at the 5s poll cadence). */
+#define AI_RECENT_MAX_MISSES 12u
+/** A jump of more than this between consecutive sample timestamps (sensor
+ *  task paused, reboot, clock step) drops every EMA: the next valid sample
+ *  reseeds it instead of being blended with pre-gap values. */
+#define AI_RECENT_MAX_GAP_S 60u
+
+/**
+ * @brief Short-term smoothed reading (per-channel EMA over the last few
+ *        valid samples, ~30s at the 5s poll cadence), channel order as the
+ *        model's. Used by ai_scheduler's absolute-threshold check, which must
+ *        react within seconds instead of waiting for an hourly mean.
+ *
+ * @param out          out[c] is meaningful only where fresh[c] is true.
+ * @param fresh        fresh[c] = channel c had a valid reading within the
+ *                     last AI_RECENT_MAX_MISSES samples and no time gap since.
+ *                     A stale channel means "unknown", never "clean air".
+ * @param samples_fed  optional; total samples fed since boot (valid or not),
+ *                     lets the caller detect that samples stopped arriving
+ *                     altogether, which this module cannot see by itself.
+ * @return true if at least one channel is fresh.
+ */
+bool ai_input_get_recent(float out[AI_INPUT_NUM_CHANNELS], bool fresh[AI_INPUT_NUM_CHANNELS],
+                         uint32_t *samples_fed);
 
 /** True once the ring buffer holds a full, contiguous 24h window. */
 bool ai_input_is_ready(void);

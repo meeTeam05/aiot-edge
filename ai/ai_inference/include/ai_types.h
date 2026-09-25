@@ -23,8 +23,10 @@ typedef enum {
 
 typedef struct {
     bool ready;              /**< false during 24h warm-up or on model error -- caller must not act on `signal`. */
-    ai_signal_t signal;      /**< only meaningful when ready == true. */
+    ai_signal_t signal;      /**< argmax of the ensemble (= p_alert > 0.5); only meaningful when ready == true.
+                                  ai_scheduler applies its own threshold/hysteresis on p_alert instead. */
     float confidence;        /**< ensemble-averaged probability of `signal`, in [0.5, 1.0]. */
+    float p_alert;           /**< ensemble-averaged probability of class canh_bao, in [0, 1]. */
     esp_err_t error;         /**< ESP_OK, or the reason `ready` is false due to a real fault (vs. warm-up). */
 } ai_result_t;
 
