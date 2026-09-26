@@ -219,6 +219,32 @@ menu "Smart Air Configuration"
                 you see "AllocateTensors failed". The model self-test always
                 runs at boot and disables only the model on a mismatch.
 
+        config SA_AI_REPLAY
+            bool "Replay simulated sensor data into the AI (bench test only)"
+            depends on SA_ENABLE_AI
+            default n
+            help
+                The AI ignores the real CO/NO2/T/RH readings and replays an
+                embedded simulated scenario (components/core/ai/ai_replay_data.h),
+                one sample per sensor poll, so the whole alert path (model,
+                buzzer, ai/state) can be tested on the board without gas.
+                Telemetry still reports the real sensors. Works with
+                SA_DEMO_NO_PERIPHERALS too. ai/state carries "replay":<name>.
+                Expected results: components/core/ai/tools/replay/replay_summary.md.
+                NEVER ship a build with this enabled.
+
+        config SA_AI_REPLAY_SCENARIO
+            int "Replay scenario (0 = co_event 72 min, 1 = no2_event 88 min)"
+            depends on SA_AI_REPLAY
+            default 0
+            range 0 1
+            help
+                0 co_event:  CO rises to ~140 ppm; early warning ~40 min,
+                             limit exceeded ~47 min after the first sample.
+                1 no2_event: NO2 rises to ~8 ppm with a 125 s sensor outage
+                             in the middle (preheat restarts); early warning
+                             ~45 min, limit exceeded ~64 min.
+
     endmenu
 
     # I2C Bus

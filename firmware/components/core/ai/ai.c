@@ -57,6 +57,46 @@ static gas_ews_level_t s_level = GAS_EWS_SAFE; /* max over both gases */
 static float s_window[GAS_EWS_WINDOW_STEPS][GAS_EWS_NUM_CHANNELS]; /* 3.8 KB, static, not on the task stack */
 static int64_t s_last_publish_ms = 0;
 
+#if CONFIG_SA_AI_REPLAY
+/* Bench test: the AI input comes from ai_replay_data.h instead of the sensors
+ * (see Kconfig SA_AI_REPLAY). Decoding must match export_replay.py. */
+#include "ai_replay_data.h"
+_Static_assert(CONFIG_SA_AI_REPLAY_SCENARIO < AI_REPLAY_SCENARIO_COUNT, "unknown SA_AI_REPLAY_SCENARIO");
+static const ai_replay_scenario_t *const s_replay = &k_replay_scenarios[CONFIG_SA_AI_REPLAY_SCENARIO];
+static uint32_t s_replay_idx = 0;
+
+static float replay_decode(uint16_t v, float scale, float offset)
+{
+    return v == 0xFFFFu ? NAN : (float)v / scale - offset;
+}
+
+/** Overwrite the sensor values of `x` with the next replay sample; false once the scenario ended. */
+static bool replay_next(gas_ews_sample_t *x)
+{
+    if (s_replay_idx >= s_replay->count) {
+        if (s_replay_idx == s_replay->count) {
+            ESP_LOGW(TAG, "replay '%s' finished (%u samples) -- AI gets no more input; reboot to replay again",
+                     s_replay->name, (unsigned)s_replay->count);
+            s_replay_idx++;
+        }
+        return false;
+    }
+    const uint16_t *v = s_replay->s[s_replay_idx++];
+    x->co_ppm = replay_decode(v[0], 10.0f, 0.0f);
+    x->no2_ppm = replay_decode(v[1], 1000.0f, 0.0f);
+    x->temp_c = replay_decode(v[2], 100.0f, 40.0f);
+    x->rh_pct = replay_decode(v[3], 100.0f, 0.0f);
+    x->co_valid = !isnan(x->co_ppm);
+    x->no2_valid = !isnan(x->no2_ppm);
+    x->th_valid = !isnan(x->temp_c) && !isnan(x->rh_pct);
+    if (s_replay_idx == 1 || s_replay_idx % 60 == 0) {
+        ESP_LOGI(TAG, "replay '%s': sample %u/%u (%u min)", s_replay->name, (unsigned)s_replay_idx,
+                 (unsigned)s_replay->count, (unsigned)(s_replay_idx * 5 / 60));
+    }
+    return true;
+}
+#endif
+
 static bool s_stack_logged = false;
 static uint32_t s_infer_runs = 0;
 static int64_t s_infer_sum_us = 0;
@@ -125,6 +165,9 @@ static void publish_ai_state(void)
         cJSON_AddBoolToObject(o, "proj_alarm", st->proj_alarm[g]);
         cJSON_AddBoolToObject(o, "model_alarm", st->model_alarm[g]);
     }
+#if CONFIG_SA_AI_REPLAY
+    cJSON_AddStringToObject(root, "replay", s_replay->name); /* not real sensor data */
+#endif
     cJSON_AddNumberToObject(root, "ts", (double)time(NULL));
 
     char *payload = cJSON_PrintUnformatted(root);
@@ -299,6 +342,10 @@ esp_err_t ai_start(const char *device_id)
     }
     s_task = task;
 
+#if CONFIG_SA_AI_REPLAY
+    ESP_LOGW(TAG, "AI REPLAY MODE: scenario '%s', %u samples (~%u min) -- the AI ignores the real sensors",
+             s_replay->name, (unsigned)s_replay->count, (unsigned)(s_replay->count * 5 / 60));
+#endif
     ESP_LOGI(TAG, "ai started: QCVN 03:2019/BYT CO STEL/TWA %.1f/%.1f ppm, NO2 %.2f/%.2f ppm; "
                   "model window %d steps x 10s; topic=%s",
              (double)GAS_EWS_STEL_CO_PPM, (double)GAS_EWS_TWA_CO_PPM, (double)GAS_EWS_STEL_NO2_PPM,
@@ -308,6 +355,16 @@ esp_err_t ai_start(const char *device_id)
 
 void ai_feed_sample(const gas_ews_sample_t *sample)
 {
+    if (sample == NULL) {
+        return;
+    }
+#if CONFIG_SA_AI_REPLAY
+    gas_ews_sample_t replayed = *sample; /* keeps the real monotonic t_ms */
+    if (!replay_next(&replayed)) {
+        return;
+    }
+    sample = &replayed;
+#endif
     /* gas_ews keeps its history even before ai_start()/while AI is switched
      * off, so the 10 min preheat and the model window are not restarted. */
     gas_ews_feed(sample);
