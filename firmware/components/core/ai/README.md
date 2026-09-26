@@ -179,13 +179,16 @@ cd tools
 gcc -std=c99 -O2 -I../include sim_gas_ews_timeline.c ../gas_ews.c -o sim -lm && ./sim
 ```
 
-**Trên board:** build với `SA_ENABLE_AI=y`, flash, xem log boot có `self-test OK`, rồi đọc các dòng thời gian ở mục 3.
+**Trên board:** build với `SA_ENABLE_AI=y`, flash, xem log boot có `self-test OK`, rồi đọc các dòng thời gian ở mục 3. Checklist đầy đủ: [BOARD_TEST.md](BOARD_TEST.md).
 
-Sau khi train lại model, cập nhật model, `gas_ews_contract.h`, `gas_ews_selftest.h` và golden vector bằng:
+**Replay dữ liệu mô phỏng trên board** (không cần khí): bật `SA_AI_REPLAY` và chọn `SA_AI_REPLAY_SCENARIO` (0 = `co_event`, 1 = `no2_event`). AI bỏ qua số đọc thật và phát lại kịch bản trong `ai_replay_data.h`; so kết quả với `tools/replay/replay_summary.md`. Chỉ dùng để test, không bao giờ bật khi build bản dùng thật.
+
+Sau khi train lại model, cập nhật model, `gas_ews_contract.h`, `gas_ews_selftest.h`, golden vector, rồi dữ liệu replay bằng:
 
 ```bash
 cd ungdungdidong
 PYTHONPATH=. .venv_export/Scripts/python -m gas_ews.export_firmware --fw D:/project/aiot-edge
+PYTHONPATH=. .venv_export/Scripts/python -m gas_ews.export_replay --fw D:/project/aiot-edge
 ```
 
 ## 7. Trước khi dùng thật
@@ -211,6 +214,9 @@ components/core/ai/
 ├── gas_ews.c
 ├── gas_ews_model.cpp          arena PSRAM, self-test lúc boot
 ├── gas_ews_selftest.h         TỰ SINH: 2 cửa sổ int8 + đầu ra chuẩn
+├── ai_replay_data.h           TỰ SINH: kịch bản replay (chỉ build khi SA_AI_REPLAY=y)
 ├── model/gas_ews_int8.tflite  TỰ SINH
-└── tools/                     golden test, golden vector, mô phỏng mốc thời gian
+├── BOARD_TEST.md              checklist test trên board
+└── tools/                     golden test, golden vector, mô phỏng mốc thời gian,
+                               replay/ (đầu vào + kết quả mong đợi của kịch bản replay)
 ```

@@ -8,6 +8,20 @@ Nhánh: `feature/ai-gas-ews` (tách từ `feature/ai-sprint2`). Các mục ngày
 
 ## 2026-09-26
 
+### Test trên board: checklist và replay dữ liệu mô phỏng
+
+- [BOARD_TEST.md](BOARD_TEST.md): checklist test trên board (log boot, mốc thời gian, `ai_set`, `device_mode`, reboot, còi, so sánh board với Python), kèm bảng kết quả.
+- Chế độ replay (`SA_AI_REPLAY`, mặc định tắt): AI phát lại kịch bản mô phỏng nhúng trong firmware thay cho cảm biến, mỗi lần đọc 1 mẫu, vẫn giữ đồng hồ thật. `ai/state` có thêm `"replay":<tên>`.
+- `ungdungdidong/gas_ews/export_replay.py` cắt 2 kịch bản từ golden mô phỏng:
+  - `co_event`: 72 phút; mong đợi mức 1 ở 40:00, mức 2 ở 47:20;
+  - `no2_event`: 88 phút, có một lần mất dữ liệu 125 s; mong đợi mức 1 ở 45:10, mức 2 ở 63:40.
+
+  Script sinh `ai_replay_data.h`, đầu vào CSV và kết quả mong đợi (pipeline Python INT8) trong `tools/replay/`.
+- Kiểm tra:
+  - `gas_ews.c` chạy trên dữ liệu replay khớp kết quả mong đợi (STEL/TWA/ngoại suy lệch ≤ 0.05%, do làm tròn CSV);
+  - `ai.c` biên dịch sạch ở 4 cấu hình (tắt, bật, replay 0, replay 1); chọn kịch bản sai thì báo lỗi lúc build;
+  - `gas_ews_model.cpp` biên dịch sạch với header thật của `esp-tflite-micro` 1.4.1 (phiên bản khoá trong `dependencies.lock`), `-Wall -Werror=all`.
+
 ### Chuyển `gas_ews` sang cấu trúc `feature/ai-sprint2` (nhánh `feature/ai-gas-ews`)
 
 - `feature/ai-inference` và `feature/ai-sprint2` có 34 file conflict: `ai-sprint2` đã xoá `ai/` và gộp thành component `firmware/components/core/ai`. Vì vậy không rebase nguyên trạng, mà tạo nhánh mới từ `origin/feature/ai-sprint2` rồi chuyển `gas_ews` vào.
