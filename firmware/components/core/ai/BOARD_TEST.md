@@ -146,17 +146,31 @@ Firmware phát lại một kịch bản mô phỏng có sẵn thay cho số đ�
 |---|---|
 | `SA_AI_REPLAY` | `y` (**không bao giờ** để bật khi build bản dùng thật) |
 | `SA_AI_REPLAY_SCENARIO` | `0` = `co_event` (72 phút), `1` = `no2_event` (88 phút) |
+| `SA_AI_REPLAY_SPEED` | hệ số tua, mặc định `60`: `co_event` chạy hết trong ~72 s. `1` = thời gian thực, `500` = nhanh nhất (~10 s, chỉ để so số liệu) |
 
 Dùng được cả với board có cảm biến lẫn chế độ demo (`SA_DEMO_NO_PERIPHERALS`, không cần cảm biến).
 
-**Chạy:** flash rồi để board chạy hết kịch bản, không đụng vào. Mỗi lần đọc cảm biến (~5 s) board lấy 1 mẫu. Muốn chạy lại thì reset board.
+**Chạy:** flash rồi để board chạy hết kịch bản, không đụng vào. Replay bắt đầu 10 s sau `ai_start` (chờ Wi-Fi/MQTT) và chạy trên đồng hồ mô phỏng: mẫu thứ `i` ở giây `5·i`, đưa vào nhanh gấp `SA_AI_REPLAY_SPEED` lần. Tốc độ nào thì model cũng chạy đủ từng bước 10 s, nên kết quả giống nhau. Muốn chạy lại thì reset board. AI phải đang bật (`ai_set` true); nếu tắt thì các bước vẫn trôi qua nhưng không có model, log `RS,` hay `ai/state`.
 
 | Log / MQTT | Phải thấy |
 |---|---|
-| lúc boot | `ai: AI REPLAY MODE: scenario 'co_event', 866 samples (~72 min) -- the AI ignores the real sensors` |
-| mỗi 5 phút | `ai: replay 'co_event': sample 60/866 (5 min)` |
+| lúc boot | `ai: AI REPLAY MODE: scenario 'co_event', 866 samples (~72 min) at x60 -- the AI ignores the real sensors` |
+| sau 10 s | `ai: replay 'co_event' start: 866 samples (72 min simulated) at x60` |
+| mỗi bước 10 s | `ai: RS,<t_s>,...` (một dòng CSV, dùng cho `compare_replay_log.py`) |
+| mỗi 5 phút mô phỏng | `ai: replay 'co_event': sample 60/866 (5 min)` |
 | mỗi `ai/state` | có thêm trường `"replay":"co_event"` |
-| khi hết | `ai: replay 'co_event' finished (866 samples) -- AI gets no more input; ...`, sau đó `ai/state` ngừng |
+| khi hết | `ai: replay 'co_event' finished: 433 steps in N s -- AI gets no more input; ...`, sau đó `ai/state` ngừng |
+
+Ở x60, `ai/state` heartbeat vẫn là 60 s thật (tức 1 giờ mô phỏng), nhưng mỗi lần đổi mức vẫn publish ngay. Mốc thời gian trong bảng dưới là thời gian **mô phỏng**; thời gian thật = mốc / `SA_AI_REPLAY_SPEED`.
+
+**So tự động với Python:** lưu log serial rồi chạy script so sánh (chỉ cần Python, không cần thư viện):
+
+```bash
+idf.py monitor | tee replay.log        # chờ tới dòng "replay '...' finished", Ctrl+]
+python components/core/ai/tools/replay/compare_replay_log.py replay.log
+```
+
+Script so từng bước: mức cảnh báo phải khớp tuyệt đối, `p_model` lệch ≤ 0.01, ppm/STEL/TWA/ngoại suy lệch ≤ 0.2%. Script in mốc lên mức 1/2 của board cạnh mốc mong đợi rồi kết luận `PASS`/`FAIL`.
 
 **Kết quả mong đợi** (tính bằng pipeline Python INT8, giống firmware; tính từ mẫu replay đầu tiên):
 
@@ -165,9 +179,9 @@ Dùng được cả với board có cảm biến lẫn chế độ demo (`SA_DEM
 | `co_event` | không | 30:00 | **40:00** (còi 3 dài) | **47:20** (còi 4 rất dài) | — | — | 1.00 / 0.00 |
 | `no2_event` | phút 49.2 (125 s): board preheat lại 10 phút | 30:00 | — | — | **45:10** (còi 3 dài) | **63:40** (còi 4 rất dài) | 0.02 / 0.99 |
 
-- Mốc trên board có thể trễ hơn vài %, vì board đọc mỗi 5–6 s chứ không đúng 5 s.
+- Đồng hồ mô phỏng đúng 5 s/mẫu như Python, nên mốc trên board phải trùng khớp chứ không chỉ gần đúng.
 - Bảng đầy đủ: `tools/replay/replay_summary.md`.
-- Giá trị từng bước 10 s: `tools/replay/replay_<tên>_expected.csv`, gồm các cột `co_stel15_ppm`, `co_proj10_ppm`, `co_p_model`, `co_state`, … So với `ai/state` cùng thời điểm, tiêu chí như mục 6.
+- Giá trị từng bước 10 s: `tools/replay/replay_<tên>_expected.csv`, gồm các cột `co_stel15_ppm`, `co_proj10_ppm`, `co_p_model`, `co_state`, … `compare_replay_log.py` so tự động với các file này.
 - Dữ liệu đầu vào: `tools/replay/replay_<tên>_in.csv`.
 
 Sinh lại dữ liệu replay sau khi train lại model:

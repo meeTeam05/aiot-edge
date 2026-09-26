@@ -8,6 +8,14 @@ Nhánh: `feature/ai-gas-ews` (tách từ `feature/ai-sprint2`). Các mục ngày
 
 ## 2026-09-26
 
+### Replay tua nhanh
+
+- Replay không còn lấy 1 mẫu mỗi lần đọc cảm biến trên đồng hồ thật nữa. Task `ai_replay` giờ đưa mẫu thứ `i` vào ở thời điểm mô phỏng `5·i` s, nhanh gấp `SA_AI_REPLAY_SPEED` lần (1–500, mặc định 60). Replay bắt đầu 10 s sau `ai_start`. `ai_feed_sample()` bỏ qua cảm biến thật khi replay.
+- Task replay chờ `ai_task` xử lý xong từng bước 10 s rồi mới đưa mẫu tiếp theo, nên tốc độ nào cũng không bỏ bước nào. Cuối kịch bản có thêm 1 mẫu rỗng để chốt bước cuối (433 bước với `co_event`, bằng số dòng của file expected).
+- Mỗi bước in một dòng `RS,` (ppm/STEL/TWA/ngoại suy/`p_model`/mức của từng khí). `tools/replay/compare_replay_log.py` so log đó với `replay_<tên>_expected.csv` và báo `PASS`/`FAIL`.
+- Phần xử lý mỗi bước của `ai_task` được tách thành `ai_handle_step()`; hành vi khi không replay không đổi.
+- Kiểm tra: đã chạy `compare_replay_log.py` với log giả sinh từ file expected (PASS cho cả 2 kịch bản; đổi 1 giá trị và xoá 1 bước thì FAIL đúng chỗ). **Chưa build bằng ESP-IDF và chưa chạy trên board** (máy này không có ESP-IDF hay gcc).
+
 ### Test trên board: checklist và replay dữ liệu mô phỏng
 
 - [BOARD_TEST.md](BOARD_TEST.md): checklist test trên board (log boot, mốc thời gian, `ai_set`, `device_mode`, reboot, còi, so sánh board với Python), kèm bảng kết quả.

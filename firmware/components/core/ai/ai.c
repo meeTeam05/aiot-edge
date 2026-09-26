@@ -50,7 +50,9 @@ static const char *const kLevelName[] = {"an_toan", "canh_bao_som", "vuot_nguong
 static const char *const kGasKey[GAS_EWS_NUM_GASES] = {"co", "no2"};
 
 static bool s_model_ready = false;          /* model loaded + self-test passed this boot */
+#if !CONFIG_SA_AI_REPLAY
 static uint32_t s_fed_steps = 0;            /* last gas_ews step count seen by ai_feed_sample() */
+#endif
 static uint32_t s_model_steps = 0;          /* last step the model was run for */
 static gas_ews_status_t s_status;
 static gas_ews_level_t s_level = GAS_EWS_SAFE; /* max over both gases */
@@ -58,30 +60,36 @@ static float s_window[GAS_EWS_WINDOW_STEPS][GAS_EWS_NUM_CHANNELS]; /* 3.8 KB, st
 static int64_t s_last_publish_ms = 0;
 
 #if CONFIG_SA_AI_REPLAY
-/* Bench test: the AI input comes from ai_replay_data.h instead of the sensors
- * (see Kconfig SA_AI_REPLAY). Decoding must match export_replay.py. */
+/* Bench test: ai_replay_task feeds gas_ews from ai_replay_data.h instead of
+ * the sensors, on a simulated clock (see Kconfig SA_AI_REPLAY / _SPEED).
+ * Decoding must match export_replay.py. */
 #include "ai_replay_data.h"
 _Static_assert(CONFIG_SA_AI_REPLAY_SCENARIO < AI_REPLAY_SCENARIO_COUNT, "unknown SA_AI_REPLAY_SCENARIO");
 static const ai_replay_scenario_t *const s_replay = &k_replay_scenarios[CONFIG_SA_AI_REPLAY_SCENARIO];
-static uint32_t s_replay_idx = 0;
+static TaskHandle_t s_replay_task = NULL;
+
+#define AI_REPLAY_TASK_NAME       "ai_replay"
+#define AI_REPLAY_TASK_STACK_SIZE 4096
+#define AI_REPLAY_TASK_PRIORITY   2       /* below ai_task, which finishes each step before the next sample */
+#define AI_REPLAY_SAMPLE_MS       5000    /* sample spacing in ai_replay_data.h */
+#define AI_REPLAY_START_DELAY_MS  10000   /* let Wi-Fi/MQTT come up so ai/state is not lost */
+#define AI_REPLAY_STEP_TIMEOUT_MS 5000
 
 static float replay_decode(uint16_t v, float scale, float offset)
 {
     return v == 0xFFFFu ? NAN : (float)v / scale - offset;
 }
 
-/** Overwrite the sensor values of `x` with the next replay sample; false once the scenario ended. */
-static bool replay_next(gas_ews_sample_t *x)
+/** Replay sample `idx` at simulated time idx * 5s; past the end: an all-invalid sample. */
+static void replay_sample(uint32_t idx, gas_ews_sample_t *x)
 {
-    if (s_replay_idx >= s_replay->count) {
-        if (s_replay_idx == s_replay->count) {
-            ESP_LOGW(TAG, "replay '%s' finished (%u samples) -- AI gets no more input; reboot to replay again",
-                     s_replay->name, (unsigned)s_replay->count);
-            s_replay_idx++;
-        }
-        return false;
+    x->t_ms = (int64_t)idx * AI_REPLAY_SAMPLE_MS;
+    if (idx >= s_replay->count) {
+        x->co_ppm = x->no2_ppm = x->temp_c = x->rh_pct = NAN;
+        x->co_valid = x->no2_valid = x->th_valid = false;
+        return;
     }
-    const uint16_t *v = s_replay->s[s_replay_idx++];
+    const uint16_t *v = s_replay->s[idx];
     x->co_ppm = replay_decode(v[0], 10.0f, 0.0f);
     x->no2_ppm = replay_decode(v[1], 1000.0f, 0.0f);
     x->temp_c = replay_decode(v[2], 100.0f, 40.0f);
@@ -89,11 +97,69 @@ static bool replay_next(gas_ews_sample_t *x)
     x->co_valid = !isnan(x->co_ppm);
     x->no2_valid = !isnan(x->no2_ppm);
     x->th_valid = !isnan(x->temp_c) && !isnan(x->rh_pct);
-    if (s_replay_idx == 1 || s_replay_idx % 60 == 0) {
-        ESP_LOGI(TAG, "replay '%s': sample %u/%u (%u min)", s_replay->name, (unsigned)s_replay_idx,
-                 (unsigned)s_replay->count, (unsigned)(s_replay_idx * 5 / 60));
+}
+
+/**
+ * One "RS," line per 10s step, same columns as replay_<name>_expected.csv:
+ * t_s, then per gas ppm/stel15/twa8h/proj10/p_model/level, then warmup.
+ * tools/replay/compare_replay_log.py checks a captured log against it.
+ */
+static void replay_log_step(const gas_ews_status_t *st)
+{
+    const float *f[] = {st->ppm, st->stel, st->twa, st->proj, st->p_model};
+    char line[200];
+    int n = snprintf(line, sizeof(line), "RS,%u", (unsigned)(st->steps * 10));
+    for (int g = 0; g < GAS_EWS_NUM_GASES; g++) {
+        for (size_t i = 0; i < sizeof(f) / sizeof(f[0]); i++) {
+            n += snprintf(line + n, sizeof(line) - n, ",%.5g", (double)f[i][g]);
+        }
+        n += snprintf(line + n, sizeof(line) - n, ",%d", (int)st->level[g]);
     }
-    return true;
+    snprintf(line + n, sizeof(line) - n, ",%d", st->warmup ? 1 : 0);
+    ESP_LOGI(TAG, "%s", line);
+}
+
+static void ai_replay_task(void *arg)
+{
+    (void)arg;
+    vTaskDelay(pdMS_TO_TICKS(AI_REPLAY_START_DELAY_MS));
+    ESP_LOGW(TAG, "replay '%s' start: %u samples (%u min simulated) at x%d", s_replay->name,
+             (unsigned)s_replay->count, (unsigned)(s_replay->count * 5 / 60), CONFIG_SA_AI_REPLAY_SPEED);
+
+    const int64_t start_us = esp_timer_get_time();
+    uint32_t last_steps = 0;
+    /* i == count is an extra all-invalid sample that closes the last 10s step. */
+    for (uint32_t i = 0; i <= s_replay->count; i++) {
+        int64_t due_us = start_us + (int64_t)i * AI_REPLAY_SAMPLE_MS * 1000 / CONFIG_SA_AI_REPLAY_SPEED;
+        int64_t wait_ms = (due_us - esp_timer_get_time()) / 1000;
+        TickType_t ticks = wait_ms > 0 ? pdMS_TO_TICKS((uint32_t)wait_ms) : 0;
+        vTaskDelay(ticks > 0 ? ticks : 1); /* at least one tick so the idle task still runs */
+
+        gas_ews_sample_t x;
+        replay_sample(i, &x);
+        gas_ews_feed(&x);
+
+        gas_ews_status_t st;
+        gas_ews_get_status(&st);
+        if (st.steps != last_steps) {
+            last_steps = st.steps;
+            /* Wait for ai_task so no step is skipped, however fast the replay runs. */
+            xTaskNotifyGive(s_task);
+            if (ulTaskNotifyTake(pdTRUE, pdMS_TO_TICKS(AI_REPLAY_STEP_TIMEOUT_MS)) == 0) {
+                ESP_LOGW(TAG, "replay: ai_task did not finish step %u in time", (unsigned)st.steps);
+            }
+        }
+        if (i > 0 && i % 60 == 0) {
+            ESP_LOGI(TAG, "replay '%s': sample %u/%u (%u min)", s_replay->name, (unsigned)i,
+                     (unsigned)s_replay->count, (unsigned)(i * 5 / 60));
+        }
+    }
+    ESP_LOGW(TAG, "replay '%s' finished: %u steps in %lld s -- AI gets no more input; reboot to replay again",
+             s_replay->name, (unsigned)last_steps, (long long)((esp_timer_get_time() - start_us) / 1000000));
+    /* Not deleted: ai_task may still notify this handle after a step timeout. */
+    while (1) {
+        ulTaskNotifyTake(pdTRUE, portMAX_DELAY);
+    }
 }
 #endif
 
@@ -263,54 +329,67 @@ static void run_model_on_new_step(void)
     gas_ews_set_model_result(steps, p, err == ESP_OK);
 }
 
+/** Everything the ai task does for one new 10s step while the AI is switched on. */
+static void ai_handle_step(bool just_enabled)
+{
+    static gas_ews_level_t last_gas_level[GAS_EWS_NUM_GASES] = {GAS_EWS_SAFE, GAS_EWS_SAFE};
+    static bool last_model_ok = false, last_warmup = true;
+
+    run_model_on_new_step();
+    gas_ews_get_status(&s_status);
+#if CONFIG_SA_AI_REPLAY
+    replay_log_step(&s_status);
+#endif
+
+    gas_ews_level_t prev = s_level;
+    s_level = s_status.level[GAS_EWS_CO] > s_status.level[GAS_EWS_NO2] ? s_status.level[GAS_EWS_CO]
+                                                                       : s_status.level[GAS_EWS_NO2];
+    bool changed = just_enabled || s_status.model_ok != last_model_ok || s_status.warmup != last_warmup;
+    for (int g = 0; g < GAS_EWS_NUM_GASES; g++) {
+        if (s_status.level[g] != last_gas_level[g]) {
+            ESP_LOGW(TAG, "%s: %s -> %s (ppm=%.2f STEL=%.2f TWA=%.2f proj=%.2f p=%.2f)", kGasKey[g],
+                     kLevelName[last_gas_level[g]], kLevelName[s_status.level[g]], (double)s_status.ppm[g],
+                     (double)s_status.stel[g], (double)s_status.twa[g], (double)s_status.proj[g],
+                     (double)s_status.p_model[g]);
+            last_gas_level[g] = s_status.level[g];
+            changed = true;
+        }
+    }
+    last_model_ok = s_status.model_ok;
+    last_warmup = s_status.warmup;
+
+    if (s_level > prev) {
+        if (s_level == GAS_EWS_EXCEEDED) {
+            buzzer_beep_pattern(kExceededPattern, sizeof(kExceededPattern) / sizeof(kExceededPattern[0]));
+        } else {
+            buzzer_beep_pattern(kEarlyPattern, sizeof(kEarlyPattern) / sizeof(kEarlyPattern[0]));
+        }
+    }
+    if (changed || now_ms() - s_last_publish_ms >= AI_STATE_PERIOD_MS) {
+        publish_ai_state();
+    }
+}
+
 static void ai_task(void *arg)
 {
     (void)arg;
-
-    gas_ews_level_t last_gas_level[GAS_EWS_NUM_GASES] = {GAS_EWS_SAFE, GAS_EWS_SAFE};
-    bool last_model_ok = false, last_warmup = true, was_enabled = false;
+    bool was_enabled = false;
 
     while (1) {
-        /* Woken by ai_feed_sample() on every new 10s gas_ews step. */
+        /* Woken on every new 10s gas_ews step by ai_feed_sample() (or ai_replay_task). */
         ulTaskNotifyTake(pdTRUE, portMAX_DELAY);
 
-        if (!ai_get_enabled()) {
+        if (ai_get_enabled()) {
+            ai_handle_step(!was_enabled);
+            was_enabled = true;
+        } else {
             was_enabled = false;
-            continue;
         }
-        bool just_enabled = !was_enabled;
-        was_enabled = true;
-
-        run_model_on_new_step();
-        gas_ews_get_status(&s_status);
-
-        gas_ews_level_t prev = s_level;
-        s_level = s_status.level[GAS_EWS_CO] > s_status.level[GAS_EWS_NO2] ? s_status.level[GAS_EWS_CO]
-                                                                           : s_status.level[GAS_EWS_NO2];
-        bool changed = just_enabled || s_status.model_ok != last_model_ok || s_status.warmup != last_warmup;
-        for (int g = 0; g < GAS_EWS_NUM_GASES; g++) {
-            if (s_status.level[g] != last_gas_level[g]) {
-                ESP_LOGW(TAG, "%s: %s -> %s (ppm=%.2f STEL=%.2f TWA=%.2f proj=%.2f p=%.2f)", kGasKey[g],
-                         kLevelName[last_gas_level[g]], kLevelName[s_status.level[g]], (double)s_status.ppm[g],
-                         (double)s_status.stel[g], (double)s_status.twa[g], (double)s_status.proj[g],
-                         (double)s_status.p_model[g]);
-                last_gas_level[g] = s_status.level[g];
-                changed = true;
-            }
+#if CONFIG_SA_AI_REPLAY
+        if (s_replay_task != NULL) {
+            xTaskNotifyGive(s_replay_task); /* step done: the replay may feed the next one */
         }
-        last_model_ok = s_status.model_ok;
-        last_warmup = s_status.warmup;
-
-        if (s_level > prev) {
-            if (s_level == GAS_EWS_EXCEEDED) {
-                buzzer_beep_pattern(kExceededPattern, sizeof(kExceededPattern) / sizeof(kExceededPattern[0]));
-            } else {
-                buzzer_beep_pattern(kEarlyPattern, sizeof(kEarlyPattern) / sizeof(kEarlyPattern[0]));
-            }
-        }
-        if (changed || now_ms() - s_last_publish_ms >= AI_STATE_PERIOD_MS) {
-            publish_ai_state();
-        }
+#endif
     }
 }
 
@@ -343,8 +422,14 @@ esp_err_t ai_start(const char *device_id)
     s_task = task;
 
 #if CONFIG_SA_AI_REPLAY
-    ESP_LOGW(TAG, "AI REPLAY MODE: scenario '%s', %u samples (~%u min) -- the AI ignores the real sensors",
-             s_replay->name, (unsigned)s_replay->count, (unsigned)(s_replay->count * 5 / 60));
+    ESP_LOGW(TAG, "AI REPLAY MODE: scenario '%s', %u samples (~%u min) at x%d -- the AI ignores the real sensors",
+             s_replay->name, (unsigned)s_replay->count, (unsigned)(s_replay->count * 5 / 60),
+             CONFIG_SA_AI_REPLAY_SPEED);
+    rc = xTaskCreatePinnedToCore(ai_replay_task, AI_REPLAY_TASK_NAME, AI_REPLAY_TASK_STACK_SIZE, NULL,
+                                 AI_REPLAY_TASK_PRIORITY, &s_replay_task, APP_CPU_NUM);
+    if (rc != pdPASS) {
+        ESP_LOGE(TAG, "replay task create failed");
+    }
 #endif
     ESP_LOGI(TAG, "ai started: QCVN 03:2019/BYT CO STEL/TWA %.1f/%.1f ppm, NO2 %.2f/%.2f ppm; "
                   "model window %d steps x 10s; topic=%s",
@@ -355,16 +440,12 @@ esp_err_t ai_start(const char *device_id)
 
 void ai_feed_sample(const gas_ews_sample_t *sample)
 {
+#if CONFIG_SA_AI_REPLAY
+    (void)sample; /* ai_replay_task feeds gas_ews instead of the real sensors */
+#else
     if (sample == NULL) {
         return;
     }
-#if CONFIG_SA_AI_REPLAY
-    gas_ews_sample_t replayed = *sample; /* keeps the real monotonic t_ms */
-    if (!replay_next(&replayed)) {
-        return;
-    }
-    sample = &replayed;
-#endif
     /* gas_ews keeps its history even before ai_start()/while AI is switched
      * off, so the 10 min preheat and the model window are not restarted. */
     gas_ews_feed(sample);
@@ -379,6 +460,7 @@ void ai_feed_sample(const gas_ews_sample_t *sample)
         s_fed_steps = st.steps;
         xTaskNotifyGive(task);
     }
+#endif
 }
 
 #else /* !SA_ENABLE_AI */

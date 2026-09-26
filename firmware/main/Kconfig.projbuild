@@ -225,13 +225,28 @@ menu "Smart Air Configuration"
             default n
             help
                 The AI ignores the real CO/NO2/T/RH readings and replays an
-                embedded simulated scenario (components/core/ai/ai_replay_data.h),
-                one sample per sensor poll, so the whole alert path (model,
-                buzzer, ai/state) can be tested on the board without gas.
-                Telemetry still reports the real sensors. Works with
-                SA_DEMO_NO_PERIPHERALS too. ai/state carries "replay":<name>.
-                Expected results: components/core/ai/tools/replay/replay_summary.md.
+                embedded simulated scenario (components/core/ai/ai_replay_data.h)
+                on a simulated 5s clock, starting 10 s after ai_start, so the
+                whole alert path (model, buzzer, ai/state) can be tested on the
+                board without gas. Telemetry still reports the real sensors.
+                Works with SA_DEMO_NO_PERIPHERALS too. ai/state carries
+                "replay":<name>; every 10s step is logged as an "RS," line.
+                Expected results: components/core/ai/tools/replay/ (check a
+                captured log with compare_replay_log.py).
                 NEVER ship a build with this enabled.
+
+        config SA_AI_REPLAY_SPEED
+            int "Replay speed (x real time)"
+            depends on SA_AI_REPLAY
+            default 60
+            range 1 500
+            help
+                1 = real time (co_event 72 min). 60 = co_event in ~72 s,
+                still slow enough to hear the buzzer and see ai/state in the
+                app. 500 = as fast as the 10 ms FreeRTOS tick allows
+                (~10 s); use it only to compare numbers. Every step is still
+                run through the model, whatever the speed, so the results
+                are the same.
 
         config SA_AI_REPLAY_SCENARIO
             int "Replay scenario (0 = co_event 72 min, 1 = no2_event 88 min)"
