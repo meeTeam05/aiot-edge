@@ -23,3 +23,12 @@ CONFIG_LV_FONT_MONTSERRAT_14=y
 CONFIG_LV_FONT_MONTSERRAT_18=y
 CONFIG_LV_FONT_MONTSERRAT_36=y
 CONFIG_LV_FONT_DEFAULT_MONTSERRAT_14=y
+
+# PSRAM for the AI tensor arena (components/core/ai, MALLOC_CAP_SPIRAM).
+# Board module is ESP32-S3 N16R8 (octal PSRAM). Only explicit heap_caps
+# allocations use PSRAM, so existing malloc() users stay in internal RAM.
+# If PSRAM is missing the device still boots and AI init fails gracefully.
+CONFIG_SPIRAM=y
+CONFIG_SPIRAM_MODE_OCT=y
+CONFIG_SPIRAM_USE_CAPS_ALLOC=y
+CONFIG_SPIRAM_IGNORE_NOTFOUND=y

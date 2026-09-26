@@ -8,10 +8,12 @@
 
 #include "sensor_task.h"
 
+#include "ai.h"
 #include "cJSON.h"
 #include "display_service.h"
 #include "esp_log.h"
 #include "esp_system.h"
+#include "esp_timer.h"
 #include "freertos/FreeRTOS.h"
 #include "freertos/task.h"
 #include "mqtt.h"
@@ -295,6 +297,23 @@ static void sensor_task_fn(void *arg)
             .timestamp = timestamp,
         };
         display_service_set_sensor_snapshot(&display_snapshot);
+
+        /* On-device CO/NO2 early warning (components/core/ai, QCVN
+         * 03:2019/BYT): raw ppm with per-sensor validity, a few float ops per
+         * poll. Time is the MONOTONIC clock: gas_ews detects outages/reboots
+         * from gaps, and an SNTP jump of the wall clock must not look like
+         * one. No-op when AI is compiled out. */
+        gas_ews_sample_t ai_sample = {
+            .t_ms = esp_timer_get_time() / 1000,
+            .co_ppm = co_ppm,
+            .no2_ppm = no2_ppm,
+            .temp_c = temperature,
+            .rh_pct = humidity,
+            .co_valid = have_co,
+            .no2_valid = have_no2,
+            .th_valid = have_sht,
+        };
+        ai_feed_sample(&ai_sample);
 
         /* Telemetry: always publish null for unavailable sensor fields. */
         cJSON *root = cJSON_CreateObject();

@@ -7,6 +7,7 @@ idf_component_register(
         config
     PRIV_REQUIRES
         adc_bus
+        ai
         ble_prov
         buzzer
         display_service

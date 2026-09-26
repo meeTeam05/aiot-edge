@@ -28,6 +28,7 @@
 #include "led.h"
 #include "factory_reset.h"
 #include "sensor_task.h"
+#include "ai.h"
 #include "httpd.h"
 #include "ota.h"
 #include "buzzer.h"
@@ -611,6 +612,46 @@ static esp_err_t handle_relay_set(const char *type, const char *json_payload)
 }
 #endif
 
+#if SA_ENABLE_AI
+static esp_err_t handle_ai_set(const char *type, const char *json_payload)
+{
+    (void)type;
+
+    if (json_payload == NULL) {
+        ESP_LOGW(TAG, "ai_set command: missing payload");
+        return ESP_ERR_INVALID_ARG;
+    }
+
+    cJSON *root = cJSON_ParseWithLength(json_payload, strlen(json_payload));
+    if (root == NULL) {
+        ESP_LOGW(TAG, "ai_set command: invalid JSON payload");
+        return ESP_ERR_INVALID_ARG;
+    }
+
+    cJSON *j_state = cJSON_GetObjectItemCaseSensitive(root, "state");
+    if (!cJSON_IsBool(j_state)) {
+        ESP_LOGW(TAG, "ai_set command: state must be boolean");
+        cJSON_Delete(root);
+        return ESP_ERR_INVALID_ARG;
+    }
+
+    bool enabled = cJSON_IsTrue(j_state);
+    cJSON_Delete(root);
+
+    if (!device_mode_get()) {
+        ESP_LOGW(TAG, "ai_set command rejected: device mode is off");
+        return ESP_ERR_INVALID_STATE;
+    }
+
+    esp_err_t err = ai_set_enabled(enabled);
+    if (err != ESP_OK) {
+        ESP_LOGW(TAG, "ai_set command failed: %s", esp_err_to_name(err));
+    }
+
+    return err;
+}
+#endif
+
 static esp_err_t handle_device_mode(const char *type, const char *json_payload)
 {
     (void)type;
@@ -1103,6 +1144,16 @@ void sysload_init(void)
     }
 #else
     ESP_LOGI(TAG, "No sensors enabled; sensor_task not started");
+#endif
+
+    /* 10b - On-device CO/NO2 early warning; a model/PSRAM failure only disables
+     * the model this boot (the QCVN rule keeps running). */
+    esp_err_t ai_err = ai_start(resolved_id);
+    if (ai_err != ESP_OK) {
+        ESP_LOGW(TAG, "ai_start failed: %s; continuing without on-device AI", esp_err_to_name(ai_err));
+    }
+#if SA_ENABLE_AI
+    register_command_handler_or_reboot("ai_set", handle_ai_set);
 #endif
 
     /* 11 - Validate OTA firmware after all subsystems are running (SEC-03) */

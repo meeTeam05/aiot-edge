@@ -110,7 +110,8 @@ flowchart TD
 20. start MQTT client
 21. start OTA task
 22. start sensor task nếu có sensor runtime hợp lệ, hoặc start demo sensor task khi `SA_DEMO_NO_PERIPHERALS=y`
-23. sau cùng gọi `ota_validate_and_commit()` để commit image OTA vừa boot nếu image đang ở trạng thái pending verify
+23. start AI runtime (`ai_start()`, nếu `SA_ENABLE_AI=y`) rồi register command handler `ai_set`; lỗi model/PSRAM chỉ log, không reboot
+24. sau cùng gọi `ota_validate_and_commit()` để commit image OTA vừa boot nếu image đang ở trạng thái pending verify
 
 Một vài ràng buộc kiến trúc đang encode trực tiếp trong boot flow:
 
@@ -367,6 +368,7 @@ Các command path đang có trong firmware:
 - `set_time`
 - `calibrate_co`
 - `calibrate_no2`
+- `ai_set` (chỉ khi `SA_ENABLE_AI=y`)
 
 `set_config` bị reject trên MQTT; provisioning path được support là local `POST /api/config`. OTA cũng không đi qua generic command topic mà đi qua `device/{id}/ota/update`.
 

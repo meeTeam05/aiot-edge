@@ -12,6 +12,7 @@ import { AtmosphereCard } from '@/components/atoms/AtmosphereCard';
 import { DeviceModeCard } from '@/components/atoms/ModeCard';
 import { SensorTile } from '@/components/atoms/SensorTile';
 import { RelayCard } from '@/components/atoms/RelayCard';
+import { AiCard } from '@/components/atoms/AiCard';
 import { EmptyState } from '@/components/atoms/EmptyState';
 
 import { useDevices } from '@/queries/devices';
@@ -136,6 +137,9 @@ export default function DeviceDashboardScreen() {
   const relay1 = reported.relay_1 === true;
   const relay2 = reported.relay_2 === true;
   const relay3 = reported.relay_3 === true;
+  // Present only when the firmware was built with SA_ENABLE_AI=y.
+  const aiSupported = typeof reported.ai_enabled === 'boolean';
+  const aiOn = reported.ai_enabled === true;
 
   const latestCommand = (commandsQuery.data ?? [])[0] ?? null;
   const numericSeries = (pick: (p: { temperature: number | null; humidity: number | null; coPpm: number | null; no2Ppm: number | null }) => number | null) =>
@@ -283,6 +287,22 @@ export default function DeviceDashboardScreen() {
           </>
         ) : null}
 
+        {aiSupported ? (
+          <>
+            <View style={{ height: AtmosphereTokens.space24 }} />
+            <Text style={AtmosphereTextStyles.h2(c.ink)}>AI</Text>
+            <View style={{ height: AtmosphereTokens.space12 }} />
+            <AiCard
+              on={aiOn}
+              disabled={!deviceOn}
+              pending={controls.ai.isPending}
+              onToggle={() => {
+                if (deviceOn) controls.ai.submit(!aiOn);
+              }}
+            />
+          </>
+        ) : null}
+
         <View style={{ height: AtmosphereTokens.space24 }} />
 
         <AtmosphereCard>
@@ -313,9 +333,10 @@ export default function DeviceDashboardScreen() {
 function controlFeedback(
   controls: ReturnType<typeof useDeviceControls>,
 ): { message: string; state: 'failure' | 'queued' } | null {
-  for (const control of [controls.mode, controls.fan, controls.lamp, controls.filter]) {
+  for (const control of [controls.mode, controls.fan, controls.lamp, controls.filter, controls.ai]) {
     if ((control.state === 'failure' || control.state === 'queued') && control.errorMessage !== null) {
-      return { message: control.errorMessage, state: control.state };
+      const message = control === controls.ai ? `AI: ${control.errorMessage}` : control.errorMessage;
+      return { message, state: control.state };
     }
   }
   return null;

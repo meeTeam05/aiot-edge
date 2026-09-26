@@ -10,7 +10,9 @@ idf_component_register(
         gm702b
         sht3x
     PRIV_REQUIRES
+        ai
         display_service
+        esp_timer
         freertos
         json
         sa_mqtt

@@ -52,6 +52,8 @@ function commandSuccessTitle(payload: Record<string, unknown>): string {
       return 'NO2 calibration completed';
     case 'set_time':
       return 'Device time synchronized';
+    case 'ai_set':
+      return `AI ${payload.state === true ? 'enabled' : 'disabled'}`;
     default:
       return 'Command completed';
   }
@@ -70,6 +72,8 @@ function commandFailureTitle(payload: Record<string, unknown>, status: string): 
       return `NO2 calibration ${suffix}`;
     case 'set_time':
       return `Time sync ${suffix}`;
+    case 'ai_set':
+      return `AI toggle ${suffix}`;
     default:
       return `Command ${suffix}`;
   }

@@ -48,11 +48,12 @@ Direction:
 | `device/{deviceId}/shadow/report` | `device -> broker` | 1 | `false` | firmware -> bridge | reported state patch |
 | `device/{deviceId}/shadow/get` | `device -> broker` | 1 | `false` | firmware -> bridge | xin desired/delta sau connect |
 | `device/{deviceId}/ota/progress` | `device -> broker` | 1 | `false` | firmware -> bridge | OTA progress snapshot |
+| `device/{deviceId}/ai/state` | `device -> broker` | 1 | `false` | firmware (khi `SA_ENABLE_AI=y`) -> chưa có bên đọc | trạng thái cảnh báo CO/NO2 (QCVN 03:2019/BYT) |
 | `device/{deviceId}/command` | `broker -> device` | 1 | `false` | API bridge -> firmware | imperative command |
 | `device/{deviceId}/shadow/get_response` | `broker -> device` | 1 | `false` | API bridge -> firmware | desired + delta |
 | `device/{deviceId}/ota/update` | `broker -> device` | 1 | `false` | server/api OTA route or manual admin publish -> firmware | OTA trigger |
 
-ACL device hiện tại cho phép đúng 9 topic ở trên, scoped theo device của chính nó.
+ACL device hiện tại cho phép đúng 10 topic ở trên, scoped theo device của chính nó. Rule cho `ai/state` chỉ được ghi khi đăng ký thiết bị; thiết bị đăng ký trước khi có rule này phải được thêm rule trước khi bật AI, nếu không mỗi lần publish sẽ bị ngắt kết nối (`deny_action = disconnect`).
 
 ---
 
@@ -182,6 +183,7 @@ Các nguồn publish hiện tại:
 2. `relay_set()` sau khi relay thay đổi thành công.
 3. `device_mode_set()` khi đổi mode.
 4. `device_mode_publish_current_shadow()` ngay sau MQTT reconnect bootstrap.
+5. `ai_set_enabled()` sau khi đổi trạng thái AI (chỉ khi `SA_ENABLE_AI=y`).
 
 Ví dụ sensor patch:
 
@@ -205,6 +207,17 @@ Ví dụ relay delta:
   "ts": 1712345678
 }
 ```
+
+Ví dụ AI delta:
+
+```json
+{
+  "ai_enabled": true,
+  "ts": 1712345678
+}
+```
+
+Snapshot mode-on/mode-off cũng kèm `ai_enabled` (boolean khi build `SA_ENABLE_AI=y`, `null` khi build không có AI để xoá giá trị cũ trong shadow đã merge). App chỉ hiện công tắc AI khi `ai_enabled` là boolean.
 
 Ví dụ mode-off patch:
 
@@ -285,6 +298,40 @@ Ghi chú:
 - Bridge hiện không validate schema OTA progress; nó chỉ cache JSON và phát realtime event.
 - Notification feed app chỉ project các status terminal `rebooting` và `failed`.
 
+### 3.7 `device/{id}/ai/state`
+
+Firmware component `components/core/ai` publish khi mức cảnh báo đổi và mỗi 60 s (chỉ khi AI đang bật bằng `ai_set` và có dữ liệu cảm biến mới). Chi tiết: `firmware/components/core/ai/README.md`.
+
+```json
+{
+  "standard": "QCVN 03:2019/BYT",
+  "level": 1,
+  "level_name": "canh_bao_som",
+  "warmup": false,
+  "model_ready": true,
+  "model_ok": true,
+  "co":  { "ppm": 12.7, "stel15": 16.8, "twa8h": 2.1, "proj10": 14.0, "p_model": 0.004, "level": 0,
+           "rule": false, "proj_alarm": false, "model_alarm": false },
+  "no2": { "ppm": 2.08, "stel15": 4.31, "twa8h": 0.4, "proj10": 3.9, "p_model": 0.0, "level": 1,
+           "rule": false, "proj_alarm": true, "model_alarm": false },
+  "ts": 1777631761
+}
+```
+
+| Field | Ý nghĩa |
+| --- | --- |
+| `level` | `0` an toàn, `1` cảnh báo sớm, `2` vượt ngưỡng QCVN; ở gốc là mức cao nhất của 2 khí |
+| `warmup` | đang bỏ qua 10 phút preheat của cảm biến MOS |
+| `model_ready` / `model_ok` | model qua self-test lúc boot / đủ 20 phút dữ liệu liên tục để chạy |
+| `ppm`, `stel15`, `twa8h`, `proj10` | ppm: số đọc, STEL 15 phút, TWA 8 giờ, STEL ngoại suy sau 10 phút |
+| `p_model` | xác suất model dự báo STEL vượt ngưỡng trong 10 phút tới |
+| `rule` / `proj_alarm` / `model_alarm` | nguồn của cảnh báo |
+
+Ghi chú:
+
+- Giá trị chưa biết được gửi là `null`.
+- Bridge và app hiện chưa đọc topic này.
+
 ---
 
 ## 4. Broker-to-device topics
@@ -309,6 +356,7 @@ Generic command types mà API hiện chấp nhận:
 - `set_time`
 - `calibrate_co`
 - `calibrate_no2`
+- `ai_set`
 
 Bridge-side validation:
 
@@ -319,12 +367,13 @@ Bridge-side validation:
 - `device_mode` chỉ nhận `type`, `mode`.
 - `set_time` chỉ nhận `type`, `ts`.
 - `calibrate_*` chỉ nhận `type`.
+- `ai_set` chỉ nhận `type`, `state` (boolean).
 
 Firmware-side validation và handling:
 
 - Inbound payload cho `command` bị drop nếu tổng payload > `512` bytes.
 - `set_time` được xử lý trực tiếp trong MQTT component qua `mqtt_register_time_sync_cb`.
-- `relay_set`, `device_mode`, `calibrate_co`, `calibrate_no2` được dispatch qua bảng handler đăng ký bởi `sysload.c`.
+- `relay_set`, `device_mode`, `calibrate_co`, `calibrate_no2`, `ai_set` được dispatch qua bảng handler đăng ký bởi `sysload.c` (`ai_set` chỉ được đăng ký khi `SA_ENABLE_AI=y`).
 - `set_config` luôn bị firmware reject trên MQTT với log hướng dẫn dùng local `POST /api/config`.
 - Unsupported command type hoặc thiếu field -> command ack `error`.
 
@@ -361,6 +410,24 @@ Behavior:
 - `mode` phải là `on` hoặc `off`.
 - Chuyển OFF sẽ publish final null telemetry rồi publish mode-off shadow.
 - Chuyển ON sẽ enable sensor task và publish mode-on shadow với relay state hiện tại.
+
+#### `ai_set`
+
+```json
+{
+  "command_id": "f47ac10b-58cc-4372-a567-0e02b2c3d479",
+  "type": "ai_set",
+  "state": true
+}
+```
+
+Behavior:
+
+- `state` phải là boolean.
+- Trả `ESP_ERR_INVALID_STATE` (ack `error`) nếu `device_mode` đang OFF.
+- Gọi `ai_set_enabled(state)`: chỉ đổi cờ trong RAM, không lưu NVS; reboot về default Kconfig.
+- Thành công sẽ publish `shadow/report` với `ai_enabled`.
+- Build `SA_ENABLE_AI=n` không đăng ký handler nên lệnh bị ack `error` (unsupported command type).
 
 #### `set_time`
 

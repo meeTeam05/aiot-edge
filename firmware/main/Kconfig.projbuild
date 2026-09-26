@@ -171,6 +171,15 @@ menu "Smart Air Configuration"
             help
                 When disabled, buzzer initialization and tone generation are skipped.
 
+        config SA_ENABLE_AI
+            bool "Enable on-device CO/NO2 early warning (QCVN 03:2019/BYT)"
+            default n
+            help
+                QCVN STEL/TWA rule + early warning (projection OR TFLite Micro
+                model on a 20 min window, every 10s). Tensor arena in PSRAM
+                (internal RAM fallback). When disabled, the ai component is a
+                no-op stub.
+
         config SA_ENABLE_LED
             bool "Enable WS2812 RGB LED"
             default y
@@ -184,6 +193,72 @@ menu "Smart Air Configuration"
             help
                 When disabled, the factory reset button task is not started.
                 The button GPIO is not configured.
+
+    endmenu
+
+    # On-device AI
+    menu "AI (on-device inference)"
+
+        config SA_AI_ENABLED_AT_BOOT
+            bool "Run AI inference by default after boot"
+            depends on SA_ENABLE_AI
+            default y
+            help
+                Not persisted to NVS; a reboot always restores this default,
+                even after the app toggles it with the ai_set command.
+
+        config SA_AI_TENSOR_ARENA_SIZE
+            int "TFLite Micro tensor arena size (bytes)"
+            depends on SA_ENABLE_AI
+            default 16384
+            range 4096 262144
+            help
+                PSRAM buffer for the interpreter (internal RAM if PSRAM is
+                missing). Largest activation is ~1 KB; the boot log prints
+                "arena used X/Y B" -- trim to X plus margin, or raise it if
+                you see "AllocateTensors failed". The model self-test always
+                runs at boot and disables only the model on a mismatch.
+
+        config SA_AI_REPLAY
+            bool "Replay simulated sensor data into the AI (bench test only)"
+            depends on SA_ENABLE_AI
+            default n
+            help
+                The AI ignores the real CO/NO2/T/RH readings and replays an
+                embedded simulated scenario (components/core/ai/ai_replay_data.h)
+                on a simulated 5s clock, starting 10 s after ai_start, so the
+                whole alert path (model, buzzer, ai/state) can be tested on the
+                board without gas. Telemetry still reports the real sensors.
+                Works with SA_DEMO_NO_PERIPHERALS too. ai/state carries
+                "replay":<name>; every 10s step is logged as an "RS," line.
+                Expected results: components/core/ai/tools/replay/ (check a
+                captured log with compare_replay_log.py).
+                NEVER ship a build with this enabled.
+
+        config SA_AI_REPLAY_SPEED
+            int "Replay speed (x real time)"
+            depends on SA_AI_REPLAY
+            default 60
+            range 1 500
+            help
+                1 = real time (co_event 72 min). 60 = co_event in ~72 s,
+                still slow enough to hear the buzzer and see ai/state in the
+                app. 500 = as fast as the 10 ms FreeRTOS tick allows
+                (~10 s); use it only to compare numbers. Every step is still
+                run through the model, whatever the speed, so the results
+                are the same.
+
+        config SA_AI_REPLAY_SCENARIO
+            int "Replay scenario (0 = co_event 72 min, 1 = no2_event 88 min)"
+            depends on SA_AI_REPLAY
+            default 0
+            range 0 1
+            help
+                0 co_event:  CO rises to ~140 ppm; early warning ~40 min,
+                             limit exceeded ~47 min after the first sample.
+                1 no2_event: NO2 rises to ~8 ppm with a 125 s sensor outage
+                             in the middle (preheat restarts); early warning
+                             ~45 min, limit exceeded ~64 min.
 
     endmenu
 
